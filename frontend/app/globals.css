@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0A0F1C;
+  --bg-secondary: #0F172A;
+  --bg-card: #1E293B;
+  --accent: #22D3EE;
+  --accent-dark: #0891B2;
+  --text-primary: #FFFFFF;
+  --text-secondary: #94A3B8;
+  --text-muted: #475569;
+  --text-footer: #64748B;
+  --border: #22D3EE33;
+  --border-subtle: #47556933;
+}
+
+@theme inline {
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-card: var(--bg-card);
+  --color-secondary: var(--bg-secondary);
+  --color-muted: var(--text-muted);
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 3px;
+}
+
+/* 공통 그라디언트 */
+.gradient-accent {
+  background: linear-gradient(90deg, #22D3EE, #06B6D4);
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, #22D3EE, #06B6D4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

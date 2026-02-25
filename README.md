@@ -4,6 +4,37 @@
 ### 팀명: Aithor
 ### 한 줄 소개: 누구나 자연어로 트레이딩 전략을 만들고, AI 코치에게 검증받는 솔라나 기반 플랫폼
 ### 대상 블록체인: Solana
+
+> **[사용 가이드 (USAGE.md)](docs/USAGE.md)** — 설치, 실행, API 레퍼런스, 배포 방법을 안내합니다.
+
+---
+## Demo Screenshots
+
+### 랜딩 페이지
+AI 트레이딩 코칭 플랫폼의 메인 화면. 4단계 코칭 프로세스, 핵심 기능 소개, 가격 정책을 한눈에 보여줍니다.
+
+![Landing Page](docs/screenshots/01-landing-page.png)
+
+### 채팅 인터페이스 (빈 상태)
+트레이딩 전략을 자연어로 입력할 수 있는 채팅 UI. 예시 버튼 클릭으로 빠르게 시작할 수 있습니다.
+
+![Chat Empty State](docs/screenshots/02-chat-empty.png)
+
+### 전략 카드 생성
+"RSI 30 이하에서 매수, 70 이상에서 매도"를 입력하면 Gemini 3.1 Pro가 구조화된 전략 카드로 변환합니다. 진입 조건, 익절/손절, 포지션 사이즈, 대상 페어, 타임프레임이 시각화됩니다.
+
+![Strategy Card](docs/screenshots/03-chat-strategy-card.png)
+
+### AI 코칭 대화
+전략 파싱 후 추가 대화를 통해 전략 수정, AI 코칭을 받을 수 있습니다.
+
+![AI Coaching](docs/screenshots/04-chat-ai-coaching.png)
+
+### 예시 템플릿
+여러 전략 템플릿이 존재하고 사용자가 선택할 수 있다.
+
+![Strategy Template](docs/screenshots/05-strategy-template.png)
+
 ---
 ## 2. 문제 정의
 ### 2-1. 감정적 거래로 인한 손실
