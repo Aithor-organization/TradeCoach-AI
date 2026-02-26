@@ -65,6 +65,9 @@ async def analyze_backtest_result(body: AnalysisRequest):
 
     try:
         summary = await generate_backtest_summary(body.strategy, body.metrics)
+        print("=========== [AI BACKTEST SUMMARY OUTPUT] ===========")
+        print(summary)
+        print("====================================================")
         return {"summary": summary}
     except Exception as e:
         import logging

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { sendMessage, sendMessageWithImage, sendMessageStream, getChatHistory } from "@/lib/api";
 import type { ChatMessage, ChatResponse, ParsedStrategy } from "@/lib/types";
 import ImagePreview from "./ImagePreview";
+import StrategyCard from "./StrategyCard";
 
 interface StrategyChatPanelProps {
   strategyId: string;
@@ -231,22 +232,42 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
           </div>
         )}
 
-        {messages.map(msg => (
-          <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[85%] ${
-              msg.role === "user"
-                ? "bg-[#22D3EE15] border border-[#22D3EE30] rounded-lg px-3 py-2"
-                : "bg-[#1E293B] rounded-lg px-3 py-2 border border-[#22D3EE08]"
-            }`}>
-              {msg.role === "assistant" && (
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-[10px] font-mono font-bold text-[#22D3EE]">AI</span>
-                </div>
-              )}
-              <p className="text-xs text-[#94A3B8] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+        {messages.map(msg => {
+          let displayContent = msg.content;
+
+          if (msg.role === "assistant" && msg.metadata?.parsed_strategy) {
+            // strategy_update 블록이나 일반 json 블록을 제거해서 UI를 깔끔하게 만듦
+            displayContent = displayContent.replace(/```strategy_update[\s\S]*?```/g, "").trim();
+            // 가끔 AI가 일반 json으로 보낼 때도 숨김 처리
+            displayContent = displayContent.replace(/```json[\s\S]*?```/g, "").trim();
+          }
+
+          return (
+            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} w-full`}>
+              <div className={`max-w-[100%] ${msg.role === "user"
+                  ? "bg-[#22D3EE15] border border-[#22D3EE30] rounded-lg px-3 py-2 ms-auto"
+                  : "bg-[#1E293B] rounded-lg px-3 py-3 border border-[#22D3EE08] w-full"
+                }`}>
+                {msg.role === "assistant" && (
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className="text-[10px] font-mono font-bold text-[#22D3EE]">TradeCoach AI</span>
+                  </div>
+                )}
+
+                {displayContent && (
+                  <p className="text-xs text-[#94A3B8] whitespace-pre-wrap leading-relaxed">{displayContent}</p>
+                )}
+
+                {msg.role === "assistant" && msg.metadata?.parsed_strategy && (
+                  <div className="mt-4 border-t border-[#0F172A] pt-4">
+                    <div className="mb-2 text-[10px] text-[#22D3EE] font-bold">✨ 전략 업데이트 제안</div>
+                    <StrategyCard strategy={msg.metadata.parsed_strategy as ParsedStrategy} />
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {isLoading && (
           <div className="flex justify-start">
