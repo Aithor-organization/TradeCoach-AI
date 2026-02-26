@@ -99,6 +99,15 @@ export interface BacktestResult {
   trade_log: TradeRecord[];
 }
 
+export interface BacktestHistoryItem {
+  id: string;
+  timestamp: Date;
+  strategy: ParsedStrategy;
+  result: BacktestResult;
+  startDate: string;
+  endDate: string;
+}
+
 // 채팅 타입
 export interface ChatMessage {
   id: string;

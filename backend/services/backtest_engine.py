@@ -35,7 +35,12 @@ async def execute_backtest(
         parsed = json.loads(parsed)
 
     # OHLCV 데이터 수집
-    df = await fetch_ohlcv(token_pair, timeframe)
+    df = await fetch_ohlcv(
+        token_symbol=token_pair,
+        timeframe=timeframe,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     # 날짜 필터
     if start_date:
@@ -71,6 +76,10 @@ async def execute_backtest(
         "timeframe": timeframe,
         "metrics": result["metrics"],
         "equity_curve": result["equity_curve"],
+        "trade_log": result["trade_log"],
+        "start_date": start_date.isoformat() if start_date else None,
+        "end_date": end_date.isoformat() if end_date else None,
+        "parsed_strategy": parsed,
     }
     if strategy_id and _UUID_RE.match(strategy_id):
         result_data["strategy_id"] = strategy_id
@@ -80,7 +89,7 @@ async def execute_backtest(
         "id": saved["id"],
         "metrics": result["metrics"],
         "equity_curve": result["equity_curve"],
-        "trade_log": result["trade_log"][:20],
+        "trade_log": result["trade_log"],
     }
 
 

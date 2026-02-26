@@ -118,6 +118,35 @@ async def parse_strategy_multimodal(text: str, image: bytes) -> dict:
     return _extract_json_from_response(result)
 
 
+async def generate_backtest_summary(strategy: dict, metrics: dict) -> str:
+    """백테스트 결과(전략 + 지표)를 바탕으로 AI 요약 피드백 생성"""
+    prompt = f"""
+당신은 날카로운 암호화폐 트레이더 및 분석가입니다. 사용자가 작성한 트레이딩 전략과 그 백테스트 결과(수익률, 승률 등)가 주어집니다.
+이 결과를 전문적이면서도 알기 쉽게 요약 분석해 주세요. 
+사용된 주요 조건(지표), 수익률 현황, MDD나 승률에서 보이는 한계점 및 개선 방향을 포함하여 3~4문장 정도의 간결한 마크다운 형식으로 응답해 주세요.
+
+주의: 프론트엔드 마크다운 파서 오류를 방지하기 위해 응답 텍스트에 `<` 또는 `>` 기호를 절대 사용하지 마세요. "초과", "미만", "이하" 등의 한글 단어로 대체하세요.
+
+## 전략 정보
+```json
+{json.dumps(strategy, ensure_ascii=False, indent=2)}
+```
+
+## 백테스트 지표 (결과)
+```json
+{json.dumps(metrics, ensure_ascii=False, indent=2)}
+```
+"""
+    result = await _safe_generate(
+        [COACHING_SYSTEM_PROMPT, prompt],
+        generation_config=genai.GenerationConfig(
+            temperature=0.6,
+            max_output_tokens=1024,
+        ),
+    )
+    return result
+
+
 def _build_chat_history(history: list[dict]) -> list[str]:
     """대화 히스토리를 Gemini 프롬프트용 문자열 리스트로 변환"""
     parts = []

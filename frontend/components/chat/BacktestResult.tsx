@@ -38,6 +38,7 @@ export default function BacktestResult({ result }: BacktestResultProps) {
           label="총 수익률"
           value={`${metrics.total_return > 0 ? "+" : ""}${metrics.total_return}%`}
           valueClass={getReturnColor(metrics.total_return)}
+          badge="최종 수익률"
         />
         <MetricCell
           label="최대 낙폭 (MDD)"

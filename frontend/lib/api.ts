@@ -189,6 +189,23 @@ export async function getBacktestResult(id: string) {
   return fetcher(`/backtest/result/${id}`);
 }
 
+export async function getBacktestHistory(strategyId: string) {
+  return fetcher<Array<Record<string, unknown>>>(`/backtest/history/${strategyId}`);
+}
+
+export async function deleteBacktestHistory(backtestId: string) {
+  return fetcher(`/backtest/history/${backtestId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function analyzeBacktest(strategy: Record<string, unknown>, metrics: Record<string, unknown>) {
+  return fetcher("/backtest/analyze", {
+    method: "POST",
+    body: JSON.stringify({ strategy, metrics }),
+  });
+}
+
 // 인증 API
 export async function requestNonce(walletAddress: string) {
   return fetcher("/auth/wallet", {

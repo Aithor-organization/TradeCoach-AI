@@ -1,6 +1,6 @@
 import httpx
 import pandas as pd
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from typing import Optional
 
 from config import get_settings
@@ -36,6 +36,8 @@ async def fetch_ohlcv(
     token_symbol: str,
     timeframe: str = "1h",
     days: int = 90,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
 ) -> pd.DataFrame:
     """Birdeye에서 OHLCV 데이터 수집"""
     token_address = TOKEN_ADDRESSES.get(token_symbol.upper().split("/")[0])
@@ -44,8 +46,18 @@ async def fetch_ohlcv(
 
     birdeye_tf = TIMEFRAME_MAP.get(timeframe, "1H")
     now = datetime.now(timezone.utc)
-    time_from = int((now - timedelta(days=days)).timestamp())
-    time_to = int(now.timestamp())
+    
+    if start_date:
+        dt_start = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        time_from = int(dt_start.timestamp())
+    else:
+        time_from = int((now - timedelta(days=days)).timestamp())
+        
+    if end_date:
+        dt_end = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+        time_to = int(dt_end.timestamp())
+    else:
+        time_to = int(now.timestamp())
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(

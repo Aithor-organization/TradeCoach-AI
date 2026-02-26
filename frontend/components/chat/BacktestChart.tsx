@@ -15,11 +15,17 @@ export default function BacktestChart({ equityCurve, metrics }: BacktestChartPro
     if (!chartRef.current || equityCurve.length === 0) return;
 
     let chart: any;
+    let isMounted = true;
 
     const initChart = async () => {
       const { createChart, AreaSeries } = await import("lightweight-charts");
 
-      chart = createChart(chartRef.current!, {
+      if (!isMounted || !chartRef.current) return;
+
+      // 기존 차트 요소가 있다면 초기화 (React Strict Mode 중복 방지)
+      chartRef.current.innerHTML = "";
+
+      chart = createChart(chartRef.current, {
         width: chartRef.current!.clientWidth,
         height: 260,
         layout: {
@@ -65,20 +71,28 @@ export default function BacktestChart({ equityCurve, metrics }: BacktestChartPro
     window.addEventListener("resize", handleResize);
 
     return () => {
+      isMounted = false;
       window.removeEventListener("resize", handleResize);
-      chart?.remove();
+      if (chart) {
+        chart.remove();
+      }
     };
   }, [equityCurve]);
 
   const getColor = (val: number) => (val >= 0 ? "text-[#22C55E]" : "text-[#EF4444]");
 
   return (
-    <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] overflow-hidden max-w-lg">
+    <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] overflow-hidden w-full">
       <div className="px-5 py-3 border-b border-[#0F172A] flex items-center justify-between">
         <span className="font-semibold text-white text-sm">📈 백테스트 결과</span>
-        <span className={`text-xs font-mono font-bold ${getColor(metrics.total_return)}`}>
-          {metrics.total_return > 0 ? "+" : ""}{metrics.total_return}%
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-xs font-mono font-bold ${getColor(metrics.total_return)}`}>
+            {metrics.total_return > 0 ? "+" : ""}{metrics.total_return}%
+          </span>
+          <span className="text-[10px] text-[#475569] bg-[#0F172A] px-1.5 py-0.5 rounded border border-[#1E293B]">
+            최종 수익률
+          </span>
+        </div>
       </div>
 
       {/* 차트 영역 */}

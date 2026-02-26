@@ -223,3 +223,31 @@ async def get_backtest_by_id(backtest_id: str) -> Optional[dict]:
         if res.status_code == 200 and res.json():
             return res.json()[0]
         return None
+
+async def get_backtests_by_strategy_id(strategy_id: str) -> list:
+    if not _is_available():
+        return []
+    async with httpx.AsyncClient() as client:
+        res = await client.get(
+            _rest_url("backtest_results"),
+            headers=_headers(),
+            params={
+                "strategy_id": f"eq.{strategy_id}",
+                "select": "*",
+                "order": "created_at.desc"
+            },
+        )
+        if res.status_code == 200:
+            return res.json()
+        return []
+
+async def delete_backtest_by_id(backtest_id: str) -> bool:
+    if not _is_available():
+        return False
+    async with httpx.AsyncClient() as client:
+        res = await client.delete(
+            _rest_url("backtest_results"),
+            headers=_headers(),
+            params={"id": f"eq.{backtest_id}"},
+        )
+        return res.status_code in (200, 204)

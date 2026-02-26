@@ -17,7 +17,7 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
   const pos = strategy.position;
 
   return (
-    <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] overflow-hidden max-w-md">
+    <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] overflow-hidden w-full">
       {/* 헤더 */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-[#0F172A]">
         <div className="flex items-center gap-2">

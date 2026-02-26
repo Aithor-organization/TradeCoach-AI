@@ -6,6 +6,7 @@ import { saveStrategy, runBacktest } from "@/lib/api";
 import StrategyCard from "./StrategyCard";
 import BacktestResult from "./BacktestResult";
 import BacktestChart from "./BacktestChart";
+import TradeLogTable from "./TradeLogTable";
 import type { ChatMessage, BacktestResult as BacktestResultType } from "@/lib/types";
 
 export default function ChatWindow({ onExampleClick }: { onExampleClick?: (text: string) => void } = {}) {
@@ -140,11 +141,10 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-lg ${
-          isUser
+        className={`max-w-lg ${isUser
             ? "bg-[#22D3EE15] border border-[#22D3EE30] rounded-lg px-4 py-3"
             : "space-y-3"
-        }`}
+          }`}
       >
         {isUser ? (
           <p className="text-sm text-white whitespace-pre-wrap">{message.content}</p>
@@ -193,6 +193,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             ) : message.metadata?.backtest_result ? (
               <BacktestResult result={message.metadata.backtest_result} />
             ) : null}
+
+            {/* 거래 내역 테이블 */}
+            {message.metadata?.backtest_result?.trade_log && (
+              <TradeLogTable trades={message.metadata.backtest_result.trade_log} />
+            )}
           </>
         )}
       </div>

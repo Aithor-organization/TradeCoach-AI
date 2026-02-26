@@ -26,8 +26,8 @@ EXAMPLE_STRATEGIES = [
                 "logic": "AND",
             },
             "exit": {
-                "take_profit": {"type": "percent", "value": 15},
-                "stop_loss": {"type": "percent", "value": -8},
+                "take_profit": {"type": "percent", "value": 5},
+                "stop_loss": {"type": "percent", "value": -5},
             },
             "position": {
                 "size_type": "percent",
@@ -68,8 +68,8 @@ EXAMPLE_STRATEGIES = [
                 "logic": "AND",
             },
             "exit": {
-                "take_profit": {"type": "percent", "value": 20},
-                "stop_loss": {"type": "percent", "value": -10},
+                "take_profit": {"type": "percent", "value": 5},
+                "stop_loss": {"type": "percent", "value": -5},
             },
             "position": {
                 "size_type": "percent",
@@ -110,8 +110,8 @@ EXAMPLE_STRATEGIES = [
                 "logic": "AND",
             },
             "exit": {
-                "take_profit": {"type": "percent", "value": 20},
-                "stop_loss": {"type": "percent", "value": -10},
+                "take_profit": {"type": "percent", "value": 5},
+                "stop_loss": {"type": "percent", "value": -5},
             },
             "position": {
                 "size_type": "percent",
@@ -160,8 +160,8 @@ EXAMPLE_STRATEGIES = [
                 "logic": "AND",
             },
             "exit": {
-                "take_profit": {"type": "percent", "value": 25},
-                "stop_loss": {"type": "percent", "value": -10},
+                "take_profit": {"type": "percent", "value": 5},
+                "stop_loss": {"type": "percent", "value": -5},
             },
             "position": {
                 "size_type": "percent",
@@ -211,14 +211,14 @@ EXAMPLE_STRATEGIES = [
             "exit": {
                 "take_profit": {
                     "type": "percent",
-                    "value": 15,
+                    "value": 5,
                     "partial": {
                         "enabled": True,
-                        "at_percent": 8,
+                        "at_percent": 2.5,
                         "sell_ratio": 0.5,
                     },
                 },
-                "stop_loss": {"type": "percent", "value": -7},
+                "stop_loss": {"type": "percent", "value": -5},
             },
             "position": {
                 "size_type": "percent",
@@ -259,8 +259,8 @@ EXAMPLE_STRATEGIES = [
                 "logic": "AND",
             },
             "exit": {
-                "take_profit": {"type": "percent", "value": 29},
-                "stop_loss": {"type": "percent", "value": -10},
+                "take_profit": {"type": "percent", "value": 5},
+                "stop_loss": {"type": "percent", "value": -5},
             },
             "position": {
                 "size_type": "percent",
@@ -308,8 +308,8 @@ EXAMPLE_STRATEGIES = [
                 "logic": "AND",
             },
             "exit": {
-                "take_profit": {"type": "percent", "value": 20},
-                "stop_loss": {"type": "percent", "value": -8},
+                "take_profit": {"type": "percent", "value": 5},
+                "stop_loss": {"type": "percent", "value": -5},
             },
             "position": {
                 "size_type": "percent",
@@ -357,8 +357,8 @@ EXAMPLE_STRATEGIES = [
                 "logic": "AND",
             },
             "exit": {
-                "take_profit": {"type": "indicator", "value": 85},
-                "stop_loss": {"type": "percent", "value": -12},
+                "take_profit": {"type": "percent", "value": 5},
+                "stop_loss": {"type": "percent", "value": -5},
             },
             "position": {
                 "size_type": "percent",
