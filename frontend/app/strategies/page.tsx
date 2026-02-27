@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getStrategies, sendMessage, saveStrategy } from "@/lib/api";
+import { getStrategies, sendMessage, saveStrategy, deleteStrategy } from "@/lib/api";
 import type { Strategy, ChatResponse } from "@/lib/types";
+import TokenPrices from "@/components/market/TokenPrices";
+import Skeleton from "@/components/common/Skeleton";
+import OnboardingBanner from "@/components/common/OnboardingBanner";
 
 type Tab = "examples" | "my";
 
@@ -12,7 +15,7 @@ export default function StrategiesPage() {
   const router = useRouter();
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("examples");
+  const [activeTab, setActiveTab] = useState<Tab>("my");
 
   // 새 전략 생성 모달 상태
   const [showModal, setShowModal] = useState(false);
@@ -34,6 +37,18 @@ export default function StrategiesPage() {
   const exampleStrategies = strategies.filter(s => s.id.startsWith("example-"));
   const myStrategies = strategies.filter(s => !s.id.startsWith("example-"));
   const displayList = activeTab === "examples" ? exampleStrategies : myStrategies;
+
+  const handleDeleteStrategy = async (e: React.MouseEvent, strategyId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm("이 전략을 삭제하시겠습니까? 관련 백테스트 기록도 함께 삭제됩니다.")) return;
+    try {
+      await deleteStrategy(strategyId);
+      setStrategies(prev => prev.filter(s => s.id !== strategyId));
+    } catch {
+      alert("전략 삭제에 실패했습니다.");
+    }
+  };
 
   const handleCreateStrategy = async () => {
     if (!newStrategyText.trim() || creating) return;
@@ -70,7 +85,7 @@ export default function StrategiesPage() {
   return (
     <div className="min-h-screen bg-[#0A0F1C] text-white">
       {/* 헤더 */}
-      <header className="h-14 flex items-center justify-between px-6 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md">
+      <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-base font-bold">TradeCoach</span>
@@ -89,30 +104,37 @@ export default function StrategiesPage() {
         </button>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-10">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+        {/* 온보딩 배너 */}
+        <OnboardingBanner />
+
+        {/* 실시간 토큰 가격 */}
+        <div className="mb-8">
+          <h2 className="text-xs font-semibold text-[#475569] uppercase tracking-wider mb-3">실시간 시세</h2>
+          <TokenPrices />
+        </div>
+
         {/* 탭 */}
         <div className="flex items-center gap-1 mb-8 bg-[#1E293B] rounded-lg p-1 w-fit">
           <button
-            onClick={() => setActiveTab("examples")}
-            className={`px-5 py-2 text-sm font-semibold rounded-md transition cursor-pointer ${
-              activeTab === "examples"
-                ? "bg-[#22D3EE] text-[#0A0F1C]"
-                : "text-[#94A3B8] hover:text-white"
-            }`}
-          >
-            예시 템플릿
-            <span className="ml-1.5 text-xs opacity-70">({exampleStrategies.length})</span>
-          </button>
-          <button
             onClick={() => setActiveTab("my")}
-            className={`px-5 py-2 text-sm font-semibold rounded-md transition cursor-pointer ${
-              activeTab === "my"
+            className={`px-5 py-2 text-sm font-semibold rounded-md transition cursor-pointer ${activeTab === "my"
                 ? "bg-[#22D3EE] text-[#0A0F1C]"
                 : "text-[#94A3B8] hover:text-white"
-            }`}
+              }`}
           >
             내 전략
             <span className="ml-1.5 text-xs opacity-70">({myStrategies.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("examples")}
+            className={`px-5 py-2 text-sm font-semibold rounded-md transition cursor-pointer ${activeTab === "examples"
+                ? "bg-[#22D3EE] text-[#0A0F1C]"
+                : "text-[#94A3B8] hover:text-white"
+              }`}
+          >
+            예시 템플릿
+            <span className="ml-1.5 text-xs opacity-70">({exampleStrategies.length})</span>
           </button>
         </div>
 
@@ -124,17 +146,28 @@ export default function StrategiesPage() {
         </p>
 
         {loading ? (
-          <div className="text-center py-20 text-[#475569]">로딩 중...</div>
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-5 rounded-xl bg-[#1E293B] border border-[#22D3EE10]">
+                <Skeleton width="40%" height="1.25rem" className="mb-3" />
+                <Skeleton width="80%" height="0.875rem" className="mb-2" />
+                <div className="flex gap-4">
+                  <Skeleton width="4rem" height="0.75rem" />
+                  <Skeleton width="3rem" height="0.75rem" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : displayList.length === 0 ? (
           <div className="text-center py-20">
-            <span className="text-5xl mb-4 block">{activeTab === "examples" ? "📋" : "🧠"}</span>
+            <span className="text-5xl mb-4 block text-[#475569]">{activeTab === "examples" ? "--" : "+"}</span>
             <p className="text-[#94A3B8] mb-4">
               {activeTab === "examples"
                 ? "예시 템플릿이 없습니다."
                 : "아직 내 전략이 없습니다. 예시 템플릿에서 가져오거나 새로 만들어보세요."}
             </p>
             {activeTab === "my" && (
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
                   onClick={() => setActiveTab("examples")}
                   className="px-5 py-3 rounded-lg bg-[#1E293B] border border-[#22D3EE30] text-[#22D3EE] font-semibold hover:border-[#22D3EE60] transition cursor-pointer"
@@ -156,15 +189,28 @@ export default function StrategiesPage() {
               <Link
                 key={s.id}
                 href={`/strategies/${s.id}`}
-                className="block p-5 rounded-xl bg-[#1E293B] border border-[#22D3EE10] hover:border-[#22D3EE40] transition-colors"
+                className="block p-5 rounded-xl bg-[#1E293B] border border-[#22D3EE10] hover:border-[#22D3EE40] transition-colors group relative"
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-semibold text-white">{s.name}</h3>
-                  {activeTab === "examples" && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-[#22D3EE]/10 text-[#22D3EE]">
-                      템플릿
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {activeTab === "examples" && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#22D3EE]/10 text-[#22D3EE]">
+                        템플릿
+                      </span>
+                    )}
+                    {activeTab === "my" && (
+                      <button
+                        onClick={(e) => handleDeleteStrategy(e, s.id)}
+                        className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-[#EF4444]/20 transition cursor-pointer"
+                        title="전략 삭제"
+                      >
+                        <svg className="w-4 h-4 text-[#94A3B8] hover:text-[#EF4444]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <p className="text-sm text-[#475569] line-clamp-2 mb-3">{s.raw_input}</p>
                 <div className="flex items-center gap-4 text-xs text-[#475569]">

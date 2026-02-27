@@ -77,6 +77,7 @@ export interface BacktestMetrics {
   sharpe_ratio: number;
   win_rate: number;
   total_trades: number;
+  init_cash?: number;
 }
 
 export interface EquityPoint {
@@ -91,12 +92,20 @@ export interface TradeRecord {
   return_pct: number;
 }
 
+export interface ActualPeriod {
+  start: string;
+  end: string;
+  candles: number;
+}
+
 export interface BacktestResult {
   id: string;
   strategy_id: string;
   metrics: BacktestMetrics;
   equity_curve: EquityPoint[];
   trade_log: TradeRecord[];
+  ai_summary?: string;
+  actual_period?: ActualPeriod;
 }
 
 export interface BacktestHistoryItem {
@@ -113,6 +122,7 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  imageUrl?: string;
   metadata?: {
     type?: "strategy_parsed" | "strategy_updated" | "backtest_result" | "coaching" | "general";
     parsed_strategy?: ParsedStrategy;

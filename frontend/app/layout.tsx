@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import WalletProvider from "@/components/wallet/WalletProvider";
+import { ToastProvider } from "@/components/common/Toast";
+import ErrorBoundary from "@/components/common/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "TradeCoach AI - AI 트레이딩 코치",
@@ -22,9 +24,13 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        <WalletProvider>
-          {children}
-        </WalletProvider>
+        <ErrorBoundary>
+          <WalletProvider>
+            <ToastProvider>
+              {children}
+            </ToastProvider>
+          </WalletProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

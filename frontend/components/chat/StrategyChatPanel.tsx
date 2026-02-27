@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sendMessage, sendMessageWithImage, sendMessageStream, getChatHistory } from "@/lib/api";
+import { useChatStore } from "@/stores/chatStore";
 import type { ChatMessage, ChatResponse, ParsedStrategy } from "@/lib/types";
 import ImagePreview from "./ImagePreview";
 import StrategyCard from "./StrategyCard";
@@ -10,9 +11,10 @@ interface StrategyChatPanelProps {
   strategyId: string;
   strategy: ParsedStrategy;
   onStrategyUpdate: (updated: ParsedStrategy) => void;
+  investmentAmount?: number;
 }
 
-export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpdate }: StrategyChatPanelProps) {
+export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpdate, investmentAmount }: StrategyChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +22,26 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
   const [attachedImage, setAttachedImage] = useState<File | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const pendingInput = useChatStore((s) => s.pendingInput);
+  const setPendingInput = useChatStore((s) => s.setPendingInput);
+
+  // 외부에서 pendingInput이 설정되면 입력창에 반영 (바로 개선 버튼 등)
+  useEffect(() => {
+    if (pendingInput) {
+      setText(pendingInput);
+      setPendingInput(null);
+    }
+  }, [pendingInput, setPendingInput]);
+
+  // 텍스트 양에 따라 textarea 높이 자동 조절 (최대 3배)
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    // 기본 높이 36px, 최대 3배 = 108px
+    el.style.height = Math.min(el.scrollHeight, 108) + "px";
+  }, [text]);
 
   // 마운트 시 저장된 채팅 히스토리 로드
   useEffect(() => {
@@ -50,10 +72,11 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
   }, [messages, isLoading]);
 
   // 전략 요약 텍스트 생성 (UI 표시용)
+  const displayInvestment = investmentAmount ?? strategy.position?.size_value ?? 1000;
   const strategySummary = (() => {
     const ps = strategy;
     const conditions = ps.entry?.conditions?.map(c => c.description || `${c.indicator} ${c.operator} ${c.value}`).join(", ") || "없음";
-    return `${ps.name} | 진입: ${conditions} | 익절 ${ps.exit?.take_profit?.value ?? "미설정"}% / 손절 ${ps.exit?.stop_loss?.value ?? "미설정"}% | ${ps.timeframe || "1h"} ${ps.target_pair || "SOL/USDC"}`;
+    return `${ps.name} | 진입: ${conditions} | 익절 ${ps.exit?.take_profit?.value ?? "미설정"}% / 손절 ${ps.exit?.stop_loss?.value ?? "미설정"}% | 투자금 $${displayInvestment.toLocaleString()} | ${ps.timeframe || "1h"} ${ps.target_pair || "SOL/USDC"}`;
   })();
 
   const handleSend = useCallback(async () => {
@@ -78,6 +101,11 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
         role: m.role,
         content: m.content,
       }));
+      // 투자금 컨텍스트를 시스템 메시지로 첫 번째에 삽입
+      history.unshift({
+        role: "user" as const,
+        content: `[시스템 컨텍스트] 사용자가 설정한 투자금: $${displayInvestment.toLocaleString()}. 포지션은 1개로 고정. 이 금액을 기준으로 분석해주세요.`,
+      });
 
       // 이미지가 있으면 기존 방식 (멀티모달은 스트리밍 미지원)
       if (image) {
@@ -313,12 +341,13 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
           />
 
           <textarea
+            ref={textareaRef}
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder="전략에 대해 질문하거나 수정을 요청하세요... (이미지 Ctrl+V 가능)"
-            className="flex-1 bg-[#1E293B] text-white text-xs rounded-lg px-3 py-2 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none resize-none min-h-[36px] max-h-24 placeholder-[#475569]"
+            className="flex-1 bg-[#1E293B] text-white text-xs rounded-lg px-3 py-2 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none resize-none min-h-[36px] placeholder-[#475569] overflow-y-auto"
             rows={1}
             disabled={isLoading}
           />

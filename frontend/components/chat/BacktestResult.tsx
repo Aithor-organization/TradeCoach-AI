@@ -59,10 +59,14 @@ export default function BacktestResult({ result }: BacktestResultProps) {
         />
       </div>
 
-      {/* 거래 수 */}
-      <div className="px-5 py-2.5 border-t border-[#0F172A] text-center">
+      {/* 거래 수 + 초기자본 */}
+      <div className="px-5 py-2.5 border-t border-[#0F172A] flex items-center justify-center gap-3">
         <span className="text-xs text-[#475569]">
           총 <span className="font-mono text-white">{metrics.total_trades}</span>회 거래
+        </span>
+        <span className="text-[#1E293B]">|</span>
+        <span className="text-xs text-[#475569]">
+          초기자본 <span className="font-mono text-[#22D3EE]">${metrics.init_cash?.toLocaleString() ?? "1,000"}</span>
         </span>
       </div>
     </div>

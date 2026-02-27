@@ -4,6 +4,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletReadyState } from "@solana/wallet-adapter-base";
 import { useCallback, useEffect, useState } from "react";
 import { requestNonce, verifyWallet } from "@/lib/api";
+import WalletBalance from "./WalletBalance";
 
 export default function WalletConnectButton() {
   const { publicKey, select, disconnect, connected, connecting, wallets, wallet } = useWallet();
@@ -54,8 +55,8 @@ export default function WalletConnectButton() {
       try {
         const address = publicKey.toBase58();
         const { nonce } = (await requestNonce(address)) as { nonce: string };
-        const { token } = (await verifyWallet(address, nonce, nonce)) as { token: string };
-        localStorage.setItem("tc_token", token);
+        const res = (await verifyWallet(address, nonce, nonce)) as { access_token: string };
+        localStorage.setItem("tc_token", res.access_token);
       } catch {
         // 인증 실패 시 조용히 넘어감 (MVP)
       } finally {
@@ -73,12 +74,12 @@ export default function WalletConnectButton() {
       <button
         onClick={handleConnect}
         disabled={connecting || isAuthenticating}
-        className="px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 cursor-pointer bg-gradient-to-r from-[#9945FF] to-[#14F195] text-white hover:opacity-90 disabled:opacity-50"
+        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 cursor-pointer bg-gradient-to-r from-[#9945FF] to-[#14F195] text-white hover:opacity-90 disabled:opacity-50"
       >
         {connecting || isAuthenticating
           ? "연결 중..."
           : connected && publicKey
-            ? shortenAddress(publicKey.toBase58())
+            ? (<>{shortenAddress(publicKey.toBase58())} <WalletBalance /></>)
             : "🔮 Phantom 연결"}
       </button>
       {error && (

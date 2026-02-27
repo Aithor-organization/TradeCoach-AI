@@ -6,32 +6,48 @@ const PLANS = [
     name: "Free",
     price: "$0",
     period: "forever",
-    description: "트레이딩 AI 코칭 체험",
+    description: "유저 획득 보조",
     features: [
-      "3회 백테스트/일",
+      "기본 전략 빌딩",
+      "월 3회 백테스트",
       "기본 AI 코칭",
       "SOL/USDC 페어",
-      "대화 기록 3일 보관",
     ],
     cta: "무료로 시작",
     variant: "secondary" as const,
     highlight: false,
   },
   {
-    name: "Pro",
-    price: "$9.99",
+    name: "Premium",
+    price: "$19.99",
     period: "/month",
-    description: "본격적인 전략 빌딩",
+    description: "프리미엄 구독",
     features: [
       "무제한 백테스트",
-      "고급 AI 코칭 (비교 분석)",
-      "5개 토큰 페어 지원",
+      "심층 AI 코칭",
+      "실시간 전략 알림",
       "전략 무제한 저장",
-      "우선 API 응답",
+      "모든 토큰 페어 지원",
     ],
-    cta: "Pro 시작하기",
+    cta: "Premium 시작하기",
     variant: "primary" as const,
     highlight: true,
+  },
+  {
+    name: "Web3 Native",
+    price: "성과 기반",
+    period: "",
+    description: "Web3 네이티브 모델",
+    features: [
+      "Premium 전체 기능 포함",
+      "전략 NFT 마켓플레이스",
+      "검증된 전략 공유 → 로열티 수익",
+      "카피트레이딩 연동",
+      "수익 발생 시에만 과금",
+    ],
+    cta: "곧 출시 예정",
+    variant: "secondary" as const,
+    highlight: false,
   },
 ];
 
@@ -50,7 +66,7 @@ export default function Pricing() {
         </div>
 
         {/* 가격 카드 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {PLANS.map((plan) => (
             <div
               key={plan.name}

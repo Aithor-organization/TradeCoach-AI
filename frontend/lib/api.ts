@@ -199,11 +199,29 @@ export async function deleteBacktestHistory(backtestId: string) {
   });
 }
 
+export async function linkBacktestsToStrategy(backtestIds: string[], strategyId: string) {
+  return fetcher("/backtest/link", {
+    method: "POST",
+    body: JSON.stringify({ backtest_ids: backtestIds, strategy_id: strategyId }),
+  });
+}
+
 export async function analyzeBacktest(strategy: Record<string, unknown>, metrics: Record<string, unknown>) {
   return fetcher("/backtest/analyze", {
     method: "POST",
     body: JSON.stringify({ strategy, metrics }),
   });
+}
+
+export async function deleteStrategy(id: string) {
+  return fetcher(`/strategy/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// 시장 데이터 API
+export async function getTokenPrices() {
+  return fetcher<{ prices: Record<string, number | null> }>("/market/prices");
 }
 
 // 인증 API

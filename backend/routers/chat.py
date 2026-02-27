@@ -1,6 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import Optional
+from dependencies import get_current_user_id
 import json
 import logging
 
@@ -27,11 +28,15 @@ async def send_message(
         except json.JSONDecodeError:
             pass
 
-    result = await process_chat_message(
-        text=content,
-        strategy_id=strategy_id,
-        history=chat_history,
-    )
+    try:
+        result = await process_chat_message(
+            text=content,
+            strategy_id=strategy_id,
+            history=chat_history,
+        )
+    except Exception as e:
+        logger.error(f"AI 메시지 처리 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="AI 응답 생성에 실패했습니다.")
 
     # 코칭 응답에서 strategy_update 블록 추출
     msg_text = result.get("message", "")
@@ -87,12 +92,16 @@ async def send_message_with_image(
         except json.JSONDecodeError:
             pass
 
-    result = await process_chat_message(
-        text=content,
-        image=image_bytes,
-        strategy_id=strategy_id,
-        history=chat_history,
-    )
+    try:
+        result = await process_chat_message(
+            text=content,
+            image=image_bytes,
+            strategy_id=strategy_id,
+            history=chat_history,
+        )
+    except Exception as e:
+        logger.error(f"이미지 메시지 AI 처리 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="AI 이미지 분석에 실패했습니다.")
 
     # strategy_id가 있으면 user/AI 메시지를 DB에 저장 (실패해도 응답은 반환)
     if strategy_id:
@@ -198,9 +207,26 @@ async def send_message_stream(
 
 
 @router.get("/history/{strategy_id}")
-async def get_chat_history(strategy_id: str):
-    """대화 히스토리 조회"""
-    from services.supabase_client import get_chat_messages
+async def get_chat_history(
+    strategy_id: str,
+    user_id: str | None = Depends(get_current_user_id),
+):
+    """대화 히스토리 조회 (로그인 시 소유권 검증)"""
+    from services.supabase_client import get_chat_messages, get_strategy_by_id
 
-    messages = await get_chat_messages(strategy_id)
-    return {"messages": messages}
+    try:
+        # 로그인한 경우에만 소유권 검증
+        if user_id:
+            strategy = await get_strategy_by_id(strategy_id)
+            if strategy:
+                owner = strategy.get("user_id")
+                if owner and owner != user_id:
+                    raise HTTPException(status_code=403, detail="이 대화에 대한 권한이 없습니다.")
+
+        messages = await get_chat_messages(strategy_id)
+        return {"messages": messages}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"대화 히스토리 조회 실패 (strategy_id={strategy_id}): {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="대화 히스토리 조회 중 오류가 발생했습니다.")

@@ -1,49 +1,52 @@
-"""RAG 서비스 - ChromaDB + Google Embedding 기반 지식 검색"""
+"""RAG 서비스 - ChromaDB + OpenAI Embedding 기반 지식 검색"""
 
 import json
 import logging
 from pathlib import Path
 
 import chromadb
-import google.generativeai as genai
+from openai import OpenAI
 
 from config import get_settings
 
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
-genai.configure(api_key=settings.gemini_api_key)
+
+# OpenRouter 클라이언트 (OpenAI 호환 API)
+_openai = OpenAI(
+    api_key=settings.openrouter_api_key,
+    base_url="https://openrouter.ai/api/v1",
+)
 
 # ChromaDB 클라이언트 (로컬 영구 저장)
 _DB_PATH = str(Path(__file__).parent.parent / "data" / "chromadb")
 _client = chromadb.PersistentClient(path=_DB_PATH)
 _collection = _client.get_or_create_collection(
-    name="trading_knowledge",
+    name="trading_knowledge_v2",
     metadata={"hnsw:space": "cosine"},
 )
 
-# Google Embedding 모델
-_EMBED_MODEL = "models/gemini-embedding-001"
+# OpenAI Embedding 모델
+_EMBED_MODEL = "text-embedding-3-small"
 
 
 def _embed_texts(texts: list[str]) -> list[list[float]]:
-    """Google Embedding API로 텍스트 임베딩 생성"""
-    result = genai.embed_content(
+    """OpenAI Embedding API로 텍스트 임베딩 생성"""
+    response = _openai.embeddings.create(
         model=_EMBED_MODEL,
-        content=texts,
-        task_type="retrieval_document",
+        input=texts,
     )
-    return result["embedding"]
+    return [item.embedding for item in response.data]
 
 
 def _embed_query(text: str) -> list[float]:
-    """검색 쿼리 임베딩 (task_type 다름)"""
-    result = genai.embed_content(
+    """검색 쿼리 임베딩"""
+    response = _openai.embeddings.create(
         model=_EMBED_MODEL,
-        content=text,
-        task_type="retrieval_query",
+        input=text,
     )
-    return result["embedding"]
+    return response.data[0].embedding
 
 
 def add_documents(

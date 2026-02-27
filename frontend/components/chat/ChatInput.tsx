@@ -1,13 +1,31 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useChatStore } from "@/stores/chatStore";
 import ImagePreview from "./ImagePreview";
 
 export default function ChatInput({ onSend }: { onSend: (text: string, image?: File) => void }) {
   const [text, setText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { attachedImage, setAttachedImage, isLoading } = useChatStore();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { attachedImage, setAttachedImage, isLoading, pendingInput, setPendingInput } = useChatStore();
+
+  // 외부에서 pendingInput이 설정되면 입력창에 반영
+  useEffect(() => {
+    if (pendingInput) {
+      setText(pendingInput);
+      setPendingInput(null);
+    }
+  }, [pendingInput, setPendingInput]);
+
+  // 텍스트 양에 따라 textarea 높이 자동 조절 (최대 3배)
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    // 기본 높이 44px, 최대 3배 = 132px
+    el.style.height = Math.min(el.scrollHeight, 132) + "px";
+  }, [text]);
 
   const handleSubmit = useCallback(() => {
     if ((!text.trim() && !attachedImage) || isLoading) return;
@@ -71,12 +89,13 @@ export default function ChatInput({ onSend }: { onSend: (text: string, image?: F
 
         {/* 텍스트 입력 */}
         <textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder="트레이딩 전략을 설명해주세요... (이미지 Ctrl+V 가능)"
-          className="flex-1 bg-[#1E293B] text-white text-sm rounded-lg px-4 py-3 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none resize-none min-h-[44px] max-h-32 placeholder-[#475569]"
+          className="flex-1 bg-[#1E293B] text-white text-sm rounded-lg px-4 py-3 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none resize-none min-h-[44px] placeholder-[#475569] overflow-y-auto"
           rows={1}
           disabled={isLoading}
         />

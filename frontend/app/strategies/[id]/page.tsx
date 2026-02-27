@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getStrategy, runBacktest, updateStrategy, forkStrategy, getBacktestHistory, deleteBacktestHistory } from "@/lib/api";
+import { getStrategy, runBacktest, updateStrategy, forkStrategy, getBacktestHistory, deleteBacktestHistory, deleteStrategy } from "@/lib/api";
 import StrategyCard from "@/components/chat/StrategyCard";
 import BacktestChart from "@/components/chat/BacktestChart";
 import BacktestResult from "@/components/chat/BacktestResult";
@@ -38,6 +38,9 @@ export default function StrategyDetailPage() {
     return new Date().toISOString().split("T")[0];
   });
 
+  // 투자금 (사용자 직접 입력)
+  const [investmentAmount, setInvestmentAmount] = useState<number>(1000);
+
   // 가져오기 모달
   const [showImportModal, setShowImportModal] = useState(false);
   const [importName, setImportName] = useState("");
@@ -55,9 +58,27 @@ export default function StrategyDetailPage() {
       try {
         const data = await getStrategy(id);
         setStrategy(data as Strategy);
+        // 투자금 초기값: 전략의 size_value
+        const ps = (data as Strategy).parsed_strategy;
+        if (ps?.position?.size_value) {
+          setInvestmentAmount(ps.position.size_value);
+        }
 
-        // 과거 백테스트 기록도 함께 로드
-        if (!isExample) {
+        // 과거 백테스트 기록 로드
+        if (isExample) {
+          // 예시 전략은 localStorage에서 복원
+          try {
+            const cached = localStorage.getItem(`bt-history-${id}`);
+            if (cached) {
+              const parsed = JSON.parse(cached) as Array<Record<string, unknown>>;
+              const restored: BacktestHistoryItem[] = parsed.map((h) => ({
+                ...h,
+                timestamp: new Date(h.timestamp as string),
+              })) as unknown as BacktestHistoryItem[];
+              setHistory(restored);
+            }
+          } catch { /* 파싱 실패 시 무시 */ }
+        } else {
           const historyData = await getBacktestHistory(id);
           if (historyData && Array.isArray(historyData)) {
             const mappedHistory: BacktestHistoryItem[] = historyData.map((h: Record<string, unknown>) => ({
@@ -69,7 +90,8 @@ export default function StrategyDetailPage() {
                 strategy_id: h.strategy_id as string,
                 metrics: h.metrics as BacktestMetrics,
                 equity_curve: (h.equity_curve || []) as EquityPoint[],
-                trade_log: (h.trade_log || []) as TradeRecord[]
+                trade_log: (h.trade_log || []) as TradeRecord[],
+                ai_summary: (h.ai_summary as string) || undefined,
               },
               startDate: (h.start_date as string) || "",
               endDate: (h.end_date as string) || ""
@@ -94,12 +116,16 @@ export default function StrategyDetailPage() {
     }
   }, [showImportModal, strategy]);
 
+  // 채팅으로 전략이 수정되었는지 추적 (최신 전략 우선 표시용)
+  const [strategyUpdatedByChat, setStrategyUpdatedByChat] = useState(false);
+
   // AI가 전략을 수정하면 즉시 페이지 반영 + DB 업데이트
   const handleStrategyUpdate = useCallback(async (updated: ParsedStrategy) => {
     setStrategy(prev => {
       if (!prev) return prev;
       return { ...prev, parsed_strategy: updated };
     });
+    setStrategyUpdatedByChat(true);
 
     if (!id || isExample) return;
 
@@ -112,11 +138,23 @@ export default function StrategyDetailPage() {
     if (!window.confirm("이 백테스트 기록을 삭제하시겠습니까? (사용 전략 및 거래 내역 포함)")) return;
 
     try {
-      await deleteBacktestHistory(historyId);
+      if (!isExample) {
+        await deleteBacktestHistory(historyId);
+      }
 
       setHistory(prev => {
         const newHistory = [...prev];
         newHistory.splice(idx, 1);
+        // 예시 전략은 localStorage도 업데이트
+        if (isExample) {
+          try {
+            const serialized = newHistory.map(h => ({
+              ...h,
+              timestamp: h.timestamp instanceof Date ? h.timestamp.toISOString() : h.timestamp,
+            }));
+            localStorage.setItem(`bt-history-${id}`, JSON.stringify(serialized));
+          } catch { /* 무시 */ }
+        }
         return newHistory;
       });
 
@@ -152,17 +190,26 @@ export default function StrategyDetailPage() {
       const ps = strategy.parsed_strategy;
       const pair = ps.target_pair || "SOL/USDC";
       const tf = ps.timeframe || "1h";
+      // 투자금 반영: max_positions=1 고정, size_value=사용자 입력값
+      const strategyWithInvestment = {
+        ...ps as unknown as Record<string, unknown>,
+        position: {
+          ...(ps.position || {}),
+          size_value: investmentAmount,
+          max_positions: 1,
+        },
+      };
       const result = await runBacktest(
         strategy.id,
         pair,
         tf,
-        ps as unknown as Record<string, unknown>,
+        strategyWithInvestment,
         startDate || undefined,
         endDate || undefined,
       ) as BtResult;
 
       const newItem: BacktestHistoryItem = {
-        id: Math.random().toString(36).substring(7),
+        id: result.id || Math.random().toString(36).substring(7),
         timestamp: new Date(),
         strategy: ps,
         result,
@@ -170,7 +217,20 @@ export default function StrategyDetailPage() {
         endDate
       };
 
-      setHistory(prev => [newItem, ...prev]);
+      setHistory(prev => {
+        const updated = [newItem, ...prev];
+        // 예시 전략은 DB 저장 안 되므로 localStorage에 캐싱
+        if (isExample) {
+          try {
+            const serialized = updated.map(h => ({
+              ...h,
+              timestamp: h.timestamp.toISOString(),
+            }));
+            localStorage.setItem(`bt-history-${id}`, JSON.stringify(serialized));
+          } catch { /* localStorage 용량 초과 시 무시 */ }
+        }
+        return updated;
+      });
       setSelectedIndex(0);
 
     } catch {
@@ -180,10 +240,23 @@ export default function StrategyDetailPage() {
     }
   };
 
-  // 현재 화면에 띄워진(선택된) 전략 컨텍스트 (이전 기록 선택 시 동적 변경)
-  const currentViewStrategy = (history.length > 0 && history[selectedIndex]?.strategy)
-    ? (history[selectedIndex].strategy as ParsedStrategy)
-    : strategy?.parsed_strategy;
+  // 현재 화면에 띄워진(선택된) 전략 컨텍스트
+  // 채팅으로 수정된 직후에는 최신 전략을 우선 표시, 아니면 선택된 히스토리 전략
+  const currentViewStrategy = strategyUpdatedByChat
+    ? strategy?.parsed_strategy
+    : (history.length > 0 && history[selectedIndex]?.strategy)
+      ? (history[selectedIndex].strategy as ParsedStrategy)
+      : strategy?.parsed_strategy;
+
+  const handleDeleteStrategy = async () => {
+    if (!window.confirm("이 전략을 삭제하시겠습니까? 관련 백테스트 기록도 함께 삭제됩니다.")) return;
+    try {
+      await deleteStrategy(id);
+      router.push("/strategies");
+    } catch {
+      alert("전략 삭제에 실패했습니다.");
+    }
+  };
 
   const handleOpenEditModal = () => {
     if (!currentViewStrategy) return;
@@ -252,7 +325,11 @@ export default function StrategyDetailPage() {
         </header>
 
         <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
-          <StrategyCard strategy={strategy.parsed_strategy} />
+          <StrategyCard
+            strategy={strategy.parsed_strategy}
+            investmentAmount={investmentAmount}
+            onInvestmentChange={setInvestmentAmount}
+          />
 
           {/* 가져오기 버튼 */}
           <button
@@ -311,7 +388,7 @@ export default function StrategyDetailPage() {
                 {history.map((item, idx) => (
                   <div key={item.id} className="inline-flex items-center">
                     <button
-                      onClick={() => setSelectedIndex(idx)}
+                      onClick={() => { setSelectedIndex(idx); setStrategyUpdatedByChat(false); }}
                       className={`whitespace-nowrap px-4 py-2 text-xs font-semibold transition-colors border-y border-l rounded-l-lg pr-2
                         ${selectedIndex === idx
                           ? "bg-[#22D3EE]/10 text-[#22D3EE] border-[#22D3EE]/30"
@@ -357,10 +434,14 @@ export default function StrategyDetailPage() {
                   </div>
 
                   {history[selectedIndex].result.equity_curve && history[selectedIndex].result.equity_curve.length > 0 ? (
-                    <BacktestChart equityCurve={history[selectedIndex].result.equity_curve} metrics={history[selectedIndex].result.metrics} />
+                    <BacktestChart equityCurve={history[selectedIndex].result.equity_curve} metrics={history[selectedIndex].result.metrics} tradeLog={history[selectedIndex].result.trade_log} actualPeriod={history[selectedIndex].result.actual_period} />
                   ) : (
                     <BacktestResult result={history[selectedIndex].result} />
                   )}
+
+                  {/* AI 요약 분석 리포트 카드 (백테스트 실행 시 생성, 저장된 것만 표시) */}
+                  <BacktestSummary aiSummary={history[selectedIndex].result.ai_summary} />
+
                   <TradeLogTable trades={history[selectedIndex].result.trade_log} />
                 </div>
               )}
@@ -423,7 +504,7 @@ export default function StrategyDetailPage() {
   return (
     <div className="h-screen flex flex-col bg-[#0A0F1C] text-white">
       {/* 헤더 */}
-      <header className="h-14 flex items-center px-6 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md flex-shrink-0">
+      <header className="h-14 flex items-center justify-between px-6 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md flex-shrink-0">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-base font-bold">TradeCoach</span>
@@ -438,6 +519,12 @@ export default function StrategyDetailPage() {
           <span className="text-[#475569]">/</span>
           <span className="text-sm text-white">{strategy.name}</span>
         </div>
+        <button
+          onClick={handleDeleteStrategy}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#EF4444]/30 text-[#EF4444] hover:bg-[#EF4444]/10 transition cursor-pointer"
+        >
+          전략 삭제
+        </button>
       </header>
 
       {/* 메인 3-Column 레이아웃 */}
@@ -464,7 +551,7 @@ export default function StrategyDetailPage() {
               history.map((item, idx) => (
                 <div key={item.id} className="relative group">
                   <button
-                    onClick={() => setSelectedIndex(idx)}
+                    onClick={() => { setSelectedIndex(idx); setStrategyUpdatedByChat(false); }}
                     className={`block w-full text-left p-3 rounded-lg border transition-colors ${selectedIndex === idx
                       ? "bg-[#22D3EE]/10 border-[#22D3EE]/30"
                       : "bg-[#1E293B] border-[#1E293B] hover:border-[#475569] hover:bg-[#1E293B]/80"
@@ -509,6 +596,8 @@ export default function StrategyDetailPage() {
               <StrategyCard
                 strategy={currentViewStrategy}
                 onEdit={handleOpenEditModal}
+                investmentAmount={investmentAmount}
+                onInvestmentChange={setInvestmentAmount}
               />
             )}
 
@@ -572,18 +661,13 @@ export default function StrategyDetailPage() {
                     </div>
 
                     {history[selectedIndex].result.equity_curve && history[selectedIndex].result.equity_curve.length > 0 ? (
-                      <BacktestChart equityCurve={history[selectedIndex].result.equity_curve} metrics={history[selectedIndex].result.metrics} />
+                      <BacktestChart equityCurve={history[selectedIndex].result.equity_curve} metrics={history[selectedIndex].result.metrics} tradeLog={history[selectedIndex].result.trade_log} actualPeriod={history[selectedIndex].result.actual_period} />
                     ) : (
                       <BacktestResult result={history[selectedIndex].result} />
                     )}
 
-                    {/* AI 요약 분서 리포트 카드 */}
-                    {history[selectedIndex].strategy && history[selectedIndex].result.metrics && (
-                      <BacktestSummary
-                        strategy={history[selectedIndex].strategy as unknown as Record<string, unknown>}
-                        metrics={history[selectedIndex].result.metrics as unknown as Record<string, unknown>}
-                      />
-                    )}
+                    {/* AI 요약 분석 리포트 카드 (백테스트 실행 시 생성, 저장된 것만 표시) */}
+                    <BacktestSummary aiSummary={history[selectedIndex].result.ai_summary} />
 
                     <TradeLogTable trades={history[selectedIndex].result.trade_log} />
                   </div>
@@ -603,6 +687,7 @@ export default function StrategyDetailPage() {
               strategyId={strategy.id}
               strategy={currentViewStrategy}
               onStrategyUpdate={handleStrategyUpdate}
+              investmentAmount={investmentAmount}
             />
           )}
         </aside>

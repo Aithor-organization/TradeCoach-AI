@@ -28,13 +28,13 @@ export default function TradeLogTable({ trades }: TradeLogTableProps) {
                         {trades.map((trade, idx) => (
                             <tr key={idx} className="hover:bg-[#0F172A]/50 transition-colors">
                                 <td className="px-5 py-3 font-mono">
-                                    {new Date(trade.entry_date).toLocaleString("ko-KR", {
+                                    {new Date(Number(trade.entry_date) * 1000).toLocaleString("ko-KR", {
                                         year: '2-digit', month: '2-digit', day: '2-digit',
                                         hour: '2-digit', minute: '2-digit'
                                     })}
                                 </td>
                                 <td className="px-5 py-3 font-mono">
-                                    {new Date(trade.exit_date).toLocaleString("ko-KR", {
+                                    {new Date(Number(trade.exit_date) * 1000).toLocaleString("ko-KR", {
                                         year: '2-digit', month: '2-digit', day: '2-digit',
                                         hour: '2-digit', minute: '2-digit'
                                     })}

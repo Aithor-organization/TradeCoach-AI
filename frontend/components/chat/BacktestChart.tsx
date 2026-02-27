@@ -1,14 +1,24 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { EquityPoint, BacktestMetrics } from "@/lib/types";
+import type { EquityPoint, BacktestMetrics, TradeRecord, ActualPeriod } from "@/lib/types";
 
 interface BacktestChartProps {
   equityCurve: EquityPoint[];
   metrics: BacktestMetrics;
+  tradeLog?: TradeRecord[];
+  actualPeriod?: ActualPeriod;
 }
 
-export default function BacktestChart({ equityCurve, metrics }: BacktestChartProps) {
+function formatPeriod(period: ActualPeriod): string {
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+  };
+  return `${fmt(period.start)} ~ ${fmt(period.end)} (${period.candles}캔들)`;
+}
+
+export default function BacktestChart({ equityCurve, metrics, tradeLog, actualPeriod }: BacktestChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,6 +38,7 @@ export default function BacktestChart({ equityCurve, metrics }: BacktestChartPro
       chart = createChart(chartRef.current, {
         width: chartRef.current!.clientWidth,
         height: 260,
+        attributionLogo: false,
         layout: {
           background: { color: "#0F172A" },
           textColor: "#94A3B8",
@@ -42,7 +53,12 @@ export default function BacktestChart({ equityCurve, metrics }: BacktestChartPro
           horzLine: { color: "#22D3EE50", labelBackgroundColor: "#1E293B" },
         },
         timeScale: { borderColor: "#1E293B" },
-        rightPriceScale: { borderColor: "#1E293B" },
+        rightPriceScale: {
+          borderColor: "#1E293B",
+        },
+        localization: {
+          priceFormatter: (price: number) => `$${price.toFixed(2)}`,
+        },
       });
 
       const series = chart.addSeries(AreaSeries, {
@@ -84,12 +100,22 @@ export default function BacktestChart({ equityCurve, metrics }: BacktestChartPro
   return (
     <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] overflow-hidden w-full">
       <div className="px-5 py-3 border-b border-[#0F172A] flex items-center justify-between">
-        <span className="font-semibold text-white text-sm">📈 백테스트 결과</span>
+        <span className="font-semibold text-white text-sm flex flex-col gap-0.5">
+          <span className="flex items-center gap-2">
+            백테스트 결과
+            <span className="text-[10px] text-[#94A3B8] font-normal">(초기자본 ${metrics.init_cash?.toLocaleString() ?? "1,000"} 기준)</span>
+          </span>
+          {actualPeriod && (
+            <span className="text-[10px] text-[#22D3EE] font-normal font-mono">
+              {formatPeriod(actualPeriod)}
+            </span>
+          )}
+        </span>
         <div className="flex items-center gap-1.5">
           <span className={`text-xs font-mono font-bold ${getColor(metrics.total_return)}`}>
             {metrics.total_return > 0 ? "+" : ""}{metrics.total_return}%
           </span>
-          <span className="text-[10px] text-[#475569] bg-[#0F172A] px-1.5 py-0.5 rounded border border-[#1E293B]">
+          <span className="text-[10px] text-[#94A3B8] bg-[#0F172A] px-1.5 py-0.5 rounded border border-[#1E293B]">
             최종 수익률
           </span>
         </div>
@@ -112,7 +138,7 @@ export default function BacktestChart({ equityCurve, metrics }: BacktestChartPro
 function Metric({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="bg-[#1E293B] px-3 py-2 text-center">
-      <p className="text-[10px] text-[#475569]">{label}</p>
+      <p className="text-[10px] text-[#94A3B8]">{label}</p>
       <span className={`font-mono text-sm font-bold ${color}`}>{value}</span>
     </div>
   );

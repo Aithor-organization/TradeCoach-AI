@@ -10,6 +10,13 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Nonce 저장 (지갑 인증용)
+CREATE TABLE IF NOT EXISTS nonces (
+  wallet_address VARCHAR(44) PRIMARY KEY,
+  nonce TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 전략
 CREATE TABLE IF NOT EXISTS strategies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -40,6 +47,7 @@ CREATE TABLE IF NOT EXISTS backtest_results (
   end_date DATE,
   equity_curve JSONB,
   trade_log JSONB,
+  parsed_strategy JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -60,8 +68,16 @@ CREATE INDEX IF NOT EXISTS idx_backtest_strategy_id ON backtest_results(strategy
 CREATE INDEX IF NOT EXISTS idx_chat_strategy_id ON chat_messages(strategy_id);
 CREATE INDEX IF NOT EXISTS idx_chat_created_at ON chat_messages(created_at);
 
--- RLS (Row Level Security) - MVP에서는 비활성화
--- ALTER TABLE users ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE strategies ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE backtest_results ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+-- RLS (Row Level Security) - 서비스 키 바이패스 활성화
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE nonces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE strategies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE backtest_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+
+-- 서비스 키(backend)에서 모든 작업 허용
+CREATE POLICY IF NOT EXISTS "service_role_users" ON users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "service_role_nonces" ON nonces FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "service_role_strategies" ON strategies FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "service_role_backtest" ON backtest_results FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "service_role_chat" ON chat_messages FOR ALL USING (true) WITH CHECK (true);

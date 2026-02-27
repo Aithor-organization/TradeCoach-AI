@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useChatStore } from "@/stores/chatStore";
-import { saveStrategy, runBacktest } from "@/lib/api";
+import { saveStrategy, runBacktest, linkBacktestsToStrategy } from "@/lib/api";
 import StrategyCard from "./StrategyCard";
 import BacktestResult from "./BacktestResult";
 import BacktestChart from "./BacktestChart";
+import BacktestSummary from "./BacktestSummary";
+import ReactMarkdown from "react-markdown";
 import TradeLogTable from "./TradeLogTable";
 import type { ChatMessage, BacktestResult as BacktestResultType } from "@/lib/types";
 
@@ -31,9 +34,10 @@ export default function ChatWindow({ onExampleClick }: { onExampleClick?: (text:
           </p>
           <div className="mt-6 flex flex-wrap gap-2 justify-center">
             {[
-              "거래량 3배 터진 코인 소액 진입, 20% 익절",
-              "RSI 30 이하에서 매수, 70 이상에서 매도",
-              "골든크로스 전략 SOL/USDC",
+              "SOL/USDC 1시간봉, RSI(14) 30 이하 + 볼린저밴드 하단 터치 시 $500 매수, 익절 8% 손절 -5%",
+              "BTC/USDT 4시간봉, MACD 골든크로스 + 거래량 150% 급증 AND 조건으로 $1000 진입, 익절 7% 손절 -4%",
+              "ETH/USDT 1일봉, EMA(12/26) 골든크로스 + RSI(20) 40 이하 시 $300 매수, 익절 10% 손절 -5%",
+              "SOL/USDC 4시간봉, Stochastic RSI 20 이하 + ATR 3% 이상 변동 시 $500 매수, 익절 6% 손절 -3%",
             ].map((example) => (
               <button
                 key={example}
@@ -75,11 +79,14 @@ export default function ChatWindow({ onExampleClick }: { onExampleClick?: (text:
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
+  const router = useRouter();
   const { addMessage } = useChatStore();
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [savedStrategyId, setSavedStrategyId] = useState<string | null>(null);
   const [isBacktesting, setIsBacktesting] = useState(false);
+
+  const { messages: allMessages } = useChatStore();
 
   const handleSave = useCallback(async () => {
     const strategy = message.metadata?.parsed_strategy;
@@ -90,13 +97,23 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       setIsSaved(true);
       if (result?.id && result.id !== "local-strategy") {
         setSavedStrategyId(result.id);
+
+        // 메인 챗의 백테스트 결과를 새 전략에 연결
+        const btIds = allMessages
+          .filter((m) => m.metadata?.backtest_result?.id && !m.metadata.backtest_result.id.startsWith("bt-"))
+          .map((m) => m.metadata!.backtest_result!.id);
+        if (btIds.length > 0) {
+          linkBacktestsToStrategy(btIds, result.id).catch(() => {});
+        }
+
+        router.push(`/strategies/${result.id}`);
       }
     } catch (e) {
       console.error("전략 저장 실패:", e);
     } finally {
       setIsSaving(false);
     }
-  }, [message]);
+  }, [message, router, allMessages]);
 
   const handleRunBacktest = useCallback(async () => {
     const strategy = message.metadata?.parsed_strategy;
@@ -105,11 +122,19 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     try {
       const pair = strategy.target_pair || "SOL/USDC";
       const tf = strategy.timeframe || "1h";
+      // max_positions=1 고정
+      const strategyWithFixedPos = {
+        ...(strategy as unknown as Record<string, unknown>),
+        position: {
+          ...(strategy.position || {}),
+          max_positions: 1,
+        },
+      };
       const result: any = await runBacktest(
         savedStrategyId || "local",
         pair,
         tf,
-        savedStrategyId ? undefined : (strategy as unknown as Record<string, unknown>),
+        savedStrategyId ? undefined : strategyWithFixedPos,
       );
       // 백테스트 결과를 새 메시지로 추가
       const btResult: BacktestResultType = {
@@ -118,6 +143,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         metrics: result.metrics,
         equity_curve: result.equity_curve || [],
         trade_log: result.trade_log || [],
+        ai_summary: result.ai_summary || undefined,
+        actual_period: result.actual_period,
       };
       addMessage({
         id: "bt-result-" + Date.now(),
@@ -147,7 +174,16 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           }`}
       >
         {isUser ? (
-          <p className="text-sm text-white whitespace-pre-wrap">{message.content}</p>
+          <div>
+            {message.imageUrl && (
+              <img
+                src={message.imageUrl}
+                alt="첨부 이미지"
+                className="max-w-full max-h-60 rounded-lg mb-2"
+              />
+            )}
+            <p className="text-sm text-white whitespace-pre-wrap">{message.content}</p>
+          </div>
         ) : (
           <>
             {/* AI 텍스트 응답 */}
@@ -155,7 +191,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xs font-mono font-bold text-[#22D3EE]">TradeCoach AI</span>
               </div>
-              <p className="text-sm text-[#94A3B8] whitespace-pre-wrap">{message.content}</p>
+              <div className="prose prose-sm prose-invert max-w-none prose-p:text-[#94A3B8] prose-strong:text-white prose-li:text-[#94A3B8] prose-headings:text-white prose-h3:text-[14px] prose-h3:mt-4 prose-h3:mb-1.5">
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+              </div>
             </div>
 
             {/* 전략 카드 (있으면) */}
@@ -189,10 +227,17 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               <BacktestChart
                 equityCurve={message.metadata.backtest_result.equity_curve}
                 metrics={message.metadata.backtest_result.metrics}
+                tradeLog={message.metadata.backtest_result.trade_log}
+                actualPeriod={message.metadata.backtest_result.actual_period}
               />
             ) : message.metadata?.backtest_result ? (
               <BacktestResult result={message.metadata.backtest_result} />
             ) : null}
+
+            {/* AI 전략 분석 리포트 */}
+            {message.metadata?.backtest_result?.ai_summary && (
+              <BacktestSummary aiSummary={message.metadata.backtest_result.ai_summary} />
+            )}
 
             {/* 거래 내역 테이블 */}
             {message.metadata?.backtest_result?.trade_log && (

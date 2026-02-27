@@ -1,13 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useChatStore } from "@/stores/chatStore";
 import ChatWindow from "@/components/chat/ChatWindow";
 import ChatInput from "@/components/chat/ChatInput";
-import { sendMessage, sendMessageWithImage } from "@/lib/api";
-import type { ChatMessage, ChatResponse } from "@/lib/types";
+import { sendMessageStream, sendMessageWithImage } from "@/lib/api";
+import type { ChatMessage, ChatResponse, ParsedStrategy } from "@/lib/types";
 
 export default function ChatPage() {
   return (
@@ -28,12 +28,14 @@ function ChatPageInner() {
   const {
     messages,
     addMessage,
+    updateMessage,
     setLoading,
     currentStrategyId,
     currentStrategy,
     lastBacktestResult,
     setCurrentStrategy,
     setCurrentStrategyId,
+    clearChat,
   } = useChatStore();
 
   const handleSend = useCallback(async (text: string, image?: File) => {
@@ -41,7 +43,8 @@ function ChatPageInner() {
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
-      content: image ? `${text} [📎 이미지 첨부]` : text,
+      content: text || (image ? "차트 이미지 분석 요청" : ""),
+      imageUrl: image ? URL.createObjectURL(image) : undefined,
       created_at: new Date().toISOString(),
     };
     addMessage(userMsg);
@@ -55,31 +58,53 @@ function ChatPageInner() {
     }));
 
     try {
-      let response: ChatResponse;
-
       if (image) {
-        response = await sendMessageWithImage(text, image, currentStrategyId || undefined, history) as ChatResponse;
+        // 이미지 첨부 시 기존 non-streaming 방식 유지
+        const response = await sendMessageWithImage(text, image, currentStrategyId || undefined, history) as ChatResponse;
+        const aiMsg: ChatMessage = {
+          id: `ai-${Date.now()}`,
+          role: "assistant",
+          content: response.message,
+          metadata: {
+            type: response.type,
+            parsed_strategy: response.parsed_strategy,
+            backtest_result: response.backtest_result,
+          },
+          created_at: new Date().toISOString(),
+        };
+        addMessage(aiMsg);
+        if (response.parsed_strategy) {
+          setCurrentStrategy(response.parsed_strategy);
+        }
       } else {
-        response = await sendMessage(text, currentStrategyId || undefined, history) as ChatResponse;
-      }
+        // 텍스트 전용: 스트리밍 방식
+        const aiMsgId = `ai-${Date.now()}`;
+        addMessage({
+          id: aiMsgId,
+          role: "assistant",
+          content: "",
+          created_at: new Date().toISOString(),
+        });
+        setLoading(false);
 
-      // AI 응답 메시지 추가
-      const aiMsg: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        role: "assistant",
-        content: response.message,
-        metadata: {
-          type: response.type,
-          parsed_strategy: response.parsed_strategy,
-          backtest_result: response.backtest_result,
-        },
-        created_at: new Date().toISOString(),
-      };
-      addMessage(aiMsg);
-
-      // 전략이 파싱되면 상태 업데이트
-      if (response.parsed_strategy) {
-        setCurrentStrategy(response.parsed_strategy);
+        await sendMessageStream(
+          text,
+          currentStrategyId || undefined,
+          history,
+          (chunk) => {
+            updateMessage(aiMsgId, {
+              content: (useChatStore.getState().messages.find(m => m.id === aiMsgId)?.content || "") + chunk,
+            });
+          },
+          (data) => {
+            const parsedStrat = data.parsed_strategy as ParsedStrategy | undefined;
+            const msgType = data.type as NonNullable<ChatMessage["metadata"]>["type"];
+            updateMessage(aiMsgId, {
+              metadata: { type: msgType, parsed_strategy: parsedStrat },
+            });
+            if (parsedStrat) setCurrentStrategy(parsedStrat);
+          },
+        );
       }
     } catch (error) {
       const errorMsg: ChatMessage = {
@@ -92,7 +117,7 @@ function ChatPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [messages, addMessage, setLoading, currentStrategyId, setCurrentStrategy, setCurrentStrategyId]);
+  }, [messages, addMessage, updateMessage, setLoading, currentStrategyId, setCurrentStrategy]);
 
   // 전략 상세 페이지에서 진입 시 자동 코칭 시작
   useEffect(() => {
@@ -122,28 +147,38 @@ function ChatPageInner() {
     };
     addMessage(userMsg);
 
-    // AI에게 코칭 요청
+    // AI에게 코칭 요청 (스트리밍)
     const requestCoaching = async () => {
       setLoading(true);
+      const aiMsgId = `ai-${Date.now()}`;
+      addMessage({
+        id: aiMsgId,
+        role: "assistant",
+        content: "",
+        created_at: new Date().toISOString(),
+      });
+      setLoading(false);
+
       try {
         const history = [{ role: "user" as const, content: contextMsg }];
-        const response = await sendMessage(contextMsg, currentStrategyId || undefined, history) as ChatResponse;
-
-        const aiMsg: ChatMessage = {
-          id: `ai-${Date.now()}`,
-          role: "assistant",
-          content: response.message,
-          metadata: {
-            type: response.type,
-            parsed_strategy: response.parsed_strategy,
+        await sendMessageStream(
+          contextMsg,
+          currentStrategyId || undefined,
+          history,
+          (chunk) => {
+            updateMessage(aiMsgId, {
+              content: (useChatStore.getState().messages.find(m => m.id === aiMsgId)?.content || "") + chunk,
+            });
           },
-          created_at: new Date().toISOString(),
-        };
-        addMessage(aiMsg);
-
-        if (response.parsed_strategy) {
-          setCurrentStrategy(response.parsed_strategy);
-        }
+          (data) => {
+            const parsedStrat = data.parsed_strategy as ParsedStrategy | undefined;
+            const msgType = data.type as NonNullable<ChatMessage["metadata"]>["type"];
+            updateMessage(aiMsgId, {
+              metadata: { type: msgType, parsed_strategy: parsedStrat },
+            });
+            if (parsedStrat) setCurrentStrategy(parsedStrat);
+          },
+        );
       } catch (error) {
         addMessage({
           id: `error-${Date.now()}`,
@@ -151,18 +186,16 @@ function ChatPageInner() {
           content: `코칭 요청 중 오류: ${error instanceof Error ? error.message : "알 수 없는 오류"}`,
           created_at: new Date().toISOString(),
         });
-      } finally {
-        setLoading(false);
       }
     };
 
     requestCoaching();
-  }, [searchParams, currentStrategy, lastBacktestResult, currentStrategyId, addMessage, setLoading, setCurrentStrategy]);
+  }, [searchParams, currentStrategy, lastBacktestResult, currentStrategyId, addMessage, updateMessage, setLoading, setCurrentStrategy]);
 
   return (
     <div className="h-screen flex flex-col bg-[#0A0F1C]">
       {/* 상단 바 */}
-      <header className="h-14 flex items-center justify-between px-4 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md">
+      <header className="h-14 flex items-center justify-between px-4 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md flex-shrink-0">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-base font-bold text-white">TradeCoach</span>
@@ -182,13 +215,13 @@ function ChatPageInner() {
         <div className="flex items-center gap-3">
           <Link
             href="/strategies"
-            className="text-xs text-[#475569] hover:text-[#94A3B8] transition-colors"
+            className="text-xs text-[#94A3B8] hover:text-white transition-colors"
           >
             전략 목록
           </Link>
           <button
-            onClick={() => useChatStore.getState().clearChat()}
-            className="text-xs text-[#475569] hover:text-[#94A3B8] cursor-pointer"
+            onClick={() => clearChat()}
+            className="text-xs text-[#94A3B8] hover:text-white cursor-pointer"
           >
             새 대화
           </button>

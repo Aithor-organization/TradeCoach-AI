@@ -1,46 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { analyzeBacktest } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
+import { useChatStore } from "@/stores/chatStore";
 
 interface BacktestSummaryProps {
-    strategy: Record<string, unknown>;
-    metrics: Record<string, unknown>;
+    aiSummary?: string;
 }
 
-export default function BacktestSummary({ strategy, metrics }: BacktestSummaryProps) {
-    const [summary, setSummary] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
+export default function BacktestSummary({ aiSummary }: BacktestSummaryProps) {
+    const setPendingInput = useChatStore((s) => s.setPendingInput);
 
-    useEffect(() => {
-        let isMounted = true;
+    if (!aiSummary) return null;
 
-        async function fetchSummary() {
-            setLoading(true);
-            setError(false);
-            try {
-                const response = await analyzeBacktest(strategy, metrics) as { summary?: string };
-                if (response?.summary && isMounted) {
-                    setSummary(response.summary);
-                } else if (isMounted) {
-                    setError(true);
-                }
-            } catch (err) {
-                console.error("AI 요약 분석 중 오류 발생:", err);
-                if (isMounted) setError(true);
-            } finally {
-                if (isMounted) setLoading(false);
-            }
-        }
-
-        fetchSummary();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [strategy, metrics]);
+    const handleQuickImprove = () => {
+        const prompt = `위 AI 전략 분석 리포트를 기반으로 전략을 개선해주세요:\n\n${aiSummary}`;
+        setPendingInput(prompt);
+    };
 
     return (
         <div className="bg-[#1E293B] rounded-xl border border-[#D946EF]/20 overflow-hidden w-full relative">
@@ -48,28 +23,31 @@ export default function BacktestSummary({ strategy, metrics }: BacktestSummaryPr
 
             <div className="px-5 py-3 border-b border-[#0F172A] flex items-center justify-between">
                 <label className="font-semibold text-white text-sm flex items-center gap-2">
-                    <span>✨</span>
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#D946EF] to-[#8B5CF6]">
                         AI 전략 분석 리포트
                     </span>
                 </label>
+                <button
+                    type="button"
+                    onClick={handleQuickImprove}
+                    className="px-3 py-1 text-xs font-semibold rounded-md bg-gradient-to-r from-[#D946EF] to-[#8B5CF6] text-white hover:opacity-90 transition-opacity cursor-pointer"
+                >
+                    바로 개선
+                </button>
             </div>
 
             <div className="p-5 text-sm">
-                {loading ? (
-                    <div className="flex items-center gap-3 text-[#94A3B8] animate-pulse">
-                        <div className="w-4 h-4 rounded-full border-2 border-t-transparent border-[#D946EF] animate-spin" />
-                        <span>AI가 백테스트 결과를 꼼꼼하게 분석 중입니다...</span>
-                    </div>
-                ) : error || !summary ? (
-                    <div className="text-[#EF4444] text-xs">
-                        요약 정보를 불러오는 데 실패했습니다. 다시 시도해주세요.
-                    </div>
-                ) : (
-                    <div className="prose prose-sm prose-invert max-w-none prose-p:text-[#CBD5E1] prose-strong:text-white prose-li:text-[#CBD5E1]">
-                        <ReactMarkdown>{summary}</ReactMarkdown>
-                    </div>
-                )}
+                <div className="prose prose-sm prose-invert max-w-none prose-p:text-[#CBD5E1] prose-strong:text-white prose-li:text-[#CBD5E1]">
+                    <ReactMarkdown
+                        components={{
+                            h3: ({ children }) => (
+                                <h3 className="text-[15px] font-extrabold text-white mt-5 mb-2 pb-1.5 border-b border-[#D946EF]/30 first:mt-0">
+                                    {children}
+                                </h3>
+                            ),
+                        }}
+                    >{aiSummary}</ReactMarkdown>
+                </div>
             </div>
         </div>
     );

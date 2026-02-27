@@ -1,15 +1,16 @@
 import json
 from typing import Optional
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from config import get_settings
 from prompts.coaching import COACHING_SYSTEM_PROMPT
 
 settings = get_settings()
-genai.configure(api_key=settings.gemini_api_key)
 
-_model = genai.GenerativeModel("gemini-1.5-pro")
+_client = genai.Client(api_key=settings.gemini_api_key)
+_MODEL = "gemini-3-flash-preview"
 
 
 async def generate_coaching(
@@ -31,15 +32,16 @@ async def generate_coaching(
 - 총 거래 수: {metrics.get('total_trades', 0)}
 """
 
-    parts = [COACHING_SYSTEM_PROMPT, context]
+    contents = [COACHING_SYSTEM_PROMPT, context]
     if user_message:
-        parts.append(f"사용자 질문: {user_message}")
+        contents.append(f"사용자 질문: {user_message}")
     else:
-        parts.append("이 백테스트 결과를 분석하고 전략 개선점을 코칭해주세요.")
+        contents.append("이 백테스트 결과를 분석하고 전략 개선점을 코칭해주세요.")
 
-    response = await _model.generate_content_async(
-        parts,
-        generation_config=genai.GenerationConfig(
+    response = await _client.aio.models.generate_content(
+        model=_MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
             temperature=0.5,
             max_output_tokens=8192,
         ),
