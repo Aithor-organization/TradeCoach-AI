@@ -18,11 +18,14 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 서버 시작 시 RAG 지식 베이스 로드
-    from services.rag import load_knowledge_base, get_stats
-    load_knowledge_base()
-    stats = get_stats()
-    logger.info(f"RAG 지식 베이스 로드 완료: {stats['total_documents']}개 문서")
+    # 서버 시작 시 RAG 지식 베이스 로드 (실패해도 앱은 정상 시작)
+    try:
+        from services.rag import load_knowledge_base, get_stats
+        load_knowledge_base()
+        stats = get_stats()
+        logger.info(f"RAG 지식 베이스 로드 완료: {stats['total_documents']}개 문서")
+    except Exception as e:
+        logger.warning(f"RAG 지식 베이스 로드 실패 (앱은 정상 작동): {e}")
     yield
 
 

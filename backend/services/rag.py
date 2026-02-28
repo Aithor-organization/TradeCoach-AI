@@ -75,7 +75,7 @@ def add_documents(
 
 def search(query: str, n_results: int = 3) -> list[dict]:
     """쿼리와 관련된 지식 검색"""
-    if _collection.count() == 0:
+    if not settings.openrouter_api_key or _collection.count() == 0:
         return []
 
     query_embedding = _embed_query(query)
@@ -125,6 +125,10 @@ def get_stats() -> dict:
 
 def load_knowledge_base():
     """초기 트레이딩 지식 베이스 로드 (이미 있으면 스킵)"""
+    if not settings.openrouter_api_key:
+        logger.warning("RAG: OPENROUTER_API_KEY 미설정, 지식 베이스 로드 건너뜀")
+        return
+
     if _collection.count() > 0:
         logger.info(f"RAG: 지식 베이스 이미 로드됨 ({_collection.count()}개 문서)")
         return
