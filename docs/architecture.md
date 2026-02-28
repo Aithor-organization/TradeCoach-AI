@@ -29,8 +29,12 @@
 │  │ (VectorBT+pandas)│  │
 │  └──────────────────┘  │
 │  ┌──────────────────┐  │
-│  │ Birdeye REST API │  │
-│  │ (가격 데이터)     │  │
+│  │ Binance REST API │  │
+│  │ (OHLCV 데이터)   │  │
+│  └──────────────────┘  │
+│  ┌──────────────────┐  │
+│  │ Jupiter Quote API│  │
+│  │ (실시간 가격)     │  │
 │  └──────────────────┘  │
 └────────────┬───────────┘
              │
@@ -72,15 +76,13 @@
 ```
 frontend/
 ├── app/
-│   ├── layout.tsx              # 루트 레이아웃 (다크 테마)
+│   ├── layout.tsx              # 루트 레이아웃 (다크 테마, WalletProvider)
 │   ├── page.tsx                # 랜딩 페이지 (pencil 디자인)
 │   ├── chat/
 │   │   └── page.tsx            # 메인 채팅 UI (전략 빌더 + AI 코칭)
-│   ├── strategy/
-│   │   └── [id]/page.tsx       # 전략 상세 (백테스트 결과)
-│   └── api/                    # Next.js API Routes (프록시용)
-│       └── auth/
-│           └── wallet/route.ts # 지갑 인증 프록시
+│   └── strategies/
+│       ├── page.tsx            # 전략 목록 (내 전략 + 예시 템플릿)
+│       └── [id]/page.tsx       # 전략 상세 (백테스트 + AI 코칭 탭)
 ├── components/
 │   ├── layout/
 │   │   ├── Navigation.tsx      # 상단 네비게이션
@@ -94,17 +96,29 @@ frontend/
 │   │   ├── Pricing.tsx         # 가격 플랜
 │   │   └── FinalCTA.tsx        # 최종 CTA
 │   ├── chat/
-│   │   ├── ChatWindow.tsx      # 채팅 메시지 목록
-│   │   ├── ChatInput.tsx       # 메시지 입력 바 (텍스트 + 이미지 첨부)
+│   │   ├── ChatWindow.tsx      # 채팅 메시지 목록 (마크다운 렌더링)
+│   │   ├── ChatInput.tsx       # 메시지 입력 (자동 리사이즈 textarea)
 │   │   ├── ImagePreview.tsx    # 첨부 이미지 미리보기/삭제
-│   │   ├── StrategyCard.tsx    # AI가 생성한 전략 카드 (구조화된 전략 표시)
-│   │   └── BacktestResult.tsx  # 백테스트 결과 차트
+│   │   ├── StrategyCard.tsx    # 전략 카드 (투자금 입력 포함)
+│   │   ├── StrategyChatPanel.tsx # 전략 상세 페이지용 AI 코칭 채팅
+│   │   ├── BacktestResult.tsx  # 백테스트 결과 메트릭스
+│   │   ├── BacktestChart.tsx   # 자산곡선 차트 (lightweight-charts)
+│   │   ├── BacktestSummary.tsx # AI 분석 리포트 + 빠른 개선 버튼
+│   │   └── TradeLogTable.tsx   # 거래 내역 테이블
+│   ├── wallet/
+│   │   ├── WalletProvider.tsx  # Solana 지갑 프로바이더
+│   │   ├── WalletConnectButton.tsx # 지갑 연결 + 잔액 표시
+│   │   └── WalletBalance.tsx   # SOL 잔액 조회
+│   ├── market/
+│   │   └── TokenPrices.tsx     # 실시간 토큰 가격 위젯 (Jupiter)
 │   └── common/
 │       ├── Button.tsx          # 공통 버튼
-│       └── WalletButton.tsx    # 지갑 연결 버튼
+│       ├── ErrorBoundary.tsx   # 에러 바운더리
+│       ├── OnboardingBanner.tsx # 온보딩 배너
+│       ├── Skeleton.tsx        # 로딩 스켈레톤
+│       └── Toast.tsx           # 토스트 알림
 ├── lib/
-│   ├── api.ts                  # FastAPI 호출 래퍼
-│   ├── wallet.ts               # Solana 지갑 유틸
+│   ├── api.ts                  # FastAPI 호출 래퍼 (모든 엔드포인트)
 │   └── types.ts                # 공유 타입 정의
 ├── stores/
 │   └── chatStore.ts            # 채팅 상태 (Zustand)
@@ -144,7 +158,7 @@ frontend/
 | google-genai | latest | Gemini 3.1 Pro SDK |
 | vectorbt | 0.26+ | 백테스트 엔진 |
 | pandas | 2.x | 데이터 처리 |
-| httpx | latest | Birdeye API 호출 |
+| httpx | latest | 외부 API 호출 (Binance, Jupiter) |
 | supabase-py | latest | DB 클라이언트 |
 | pydantic | 2.x | 데이터 검증 |
 
@@ -152,25 +166,38 @@ frontend/
 
 ```
 backend/
-├── main.py                     # FastAPI 앱 진입점
+├── main.py                     # FastAPI 앱 진입점 + 헬스체크
 ├── config.py                   # 환경변수, 설정
+├── dependencies.py             # FastAPI 의존성 (인증 등)
 ├── routers/
 │   ├── auth.py                 # 지갑 기반 인증 API
-│   ├── chat.py                 # 채팅/AI 코칭 API
-│   ├── strategy.py             # 전략 CRUD API
-│   └── backtest.py             # 백테스트 실행 API
+│   ├── chat.py                 # 채팅/AI 코칭 API (SSE 스트리밍 포함)
+│   ├── strategy.py             # 전략 CRUD + 포크 API
+│   ├── backtest.py             # 백테스트 실행/분석 API
+│   └── market.py               # 실시간 시장 가격 API (Jupiter)
 ├── services/
-│   ├── gemini.py               # Gemini 3.1 Pro 연동
+│   ├── gemini.py               # Gemini AI 연동 (파싱, 코칭, 분석)
 │   ├── backtest_engine.py      # VectorBT 백테스트 로직
-│   ├── birdeye.py              # Birdeye 데이터 수집
-│   └── coaching.py             # AI 코칭 로직
+│   ├── binance.py              # Binance OHLCV 데이터 수집
+│   ├── birdeye.py              # Birdeye 토큰 주소 매핑
+│   ├── jupiter.py              # Jupiter Quote API (실시간 가격)
+│   ├── market_data.py          # 시장 데이터 통합 서비스
+│   ├── coaching.py             # AI 코칭 로직
+│   ├── rag.py                  # RAG 지식 베이스
+│   └── supabase_client.py      # Supabase DB 클라이언트
 ├── models/
 │   ├── strategy.py             # 전략 데이터 모델
 │   ├── backtest.py             # 백테스트 결과 모델
 │   └── user.py                 # 사용자 모델
 ├── prompts/
 │   ├── strategy_parser.py      # 전략 파싱 프롬프트
-│   └── coaching.py             # AI 코칭 프롬프트
+│   ├── coaching.py             # AI 코칭 프롬프트
+│   └── backtest_report.py      # 백테스트 AI 분석 리포트 프롬프트
+├── data/
+│   └── example_strategies.py   # 예시 전략 템플릿
+├── tests/
+│   ├── conftest.py             # 테스트 설정
+│   └── test_api.py             # API 테스트
 ├── requirements.txt
 └── Dockerfile
 ```
@@ -178,21 +205,34 @@ backend/
 ### 3-3. API 엔드포인트
 
 ```
-POST   /auth/wallet              # 지갑 서명으로 인증 (nonce 기반)
-GET    /auth/me                  # 현재 사용자 정보
+GET    /health                          # 서버 헬스체크
 
-POST   /chat/message             # 채팅 메시지 전송 → AI 응답 (텍스트)
-POST   /chat/message/image      # 이미지 포함 메시지 → AI 멀티모달 분석
-GET    /chat/history/:strategyId # 대화 히스토리 조회
+POST   /auth/wallet                     # nonce 요청 (rate limit: 10/min)
+POST   /auth/verify                     # 서명 검증 → JWT 발급 (rate limit: 5/min)
+GET    /auth/me                         # 현재 사용자 정보
 
-POST   /strategy/parse           # 자연어 → 구조화된 전략 JSON
-GET    /strategy/list            # 내 전략 목록
-GET    /strategy/:id             # 전략 상세
-PUT    /strategy/:id             # 전략 수정
-DELETE /strategy/:id             # 전략 삭제
+POST   /chat/message                    # 채팅 메시지 전송 → AI 응답 (텍스트)
+POST   /chat/message/image              # 이미지 포함 메시지 → AI 멀티모달 분석
+POST   /chat/message/stream             # SSE 스트리밍 응답
+GET    /chat/history/{strategy_id}      # 대화 히스토리 조회
 
-POST   /backtest/run             # 백테스트 실행
-GET    /backtest/result/:id      # 백테스트 결과 조회
+POST   /strategy/parse                  # 자연어 → 구조화된 전략 JSON
+POST   /strategy/save                   # 전략 저장
+GET    /strategy/list                   # 내 전략 목록
+GET    /strategy/{strategy_id}          # 전략 상세
+POST   /strategy/fork/{strategy_id}     # 예시 전략 포크 (복사)
+PUT    /strategy/{strategy_id}          # 전략 수정
+DELETE /strategy/{strategy_id}          # 전략 삭제
+
+POST   /backtest/run                    # 백테스트 실행
+GET    /backtest/result/{backtest_id}   # 백테스트 결과 조회
+GET    /backtest/history/{strategy_id}  # 전략별 백테스트 히스토리
+DELETE /backtest/history/{backtest_id}  # 백테스트 기록 삭제
+POST   /backtest/link                   # 백테스트 결과를 전략에 연결
+POST   /backtest/analyze                # AI 백테스트 분석 리포트
+
+GET    /market/prices                   # 주요 토큰 실시간 가격 (Jupiter)
+GET    /market/price/{symbol}           # 단일 토큰 가격
 ```
 
 ---
@@ -295,8 +335,8 @@ Gemini가 자연어를 파싱하여 생성하는 구조화된 전략:
   },
   "position": {
     "size_type": "fixed_usd",
-    "size_value": 100,
-    "max_positions": 3
+    "size_value": 1000,
+    "max_positions": 1
   },
   "filters": {
     "min_liquidity_usd": 50000,
@@ -409,8 +449,8 @@ AI가 파싱한 전략 JSON을 시각적 카드로 렌더링:
 │ ├ 거래량 변화 ≥ 300%                    │
 │ └ 로직: AND                             │
 │─────────────────────────────────────────│
-│ 익절        │ 손절        │ 포지션       │
-│ +20% (절반) │ -10%       │ $100 × 3    │
+│ 익절        │ 손절        │ 투자금       │
+│ +20% (절반) │ -10%       │ $1,000      │
 │─────────────────────────────────────────│
 │ 대상: SOL/USDC │ 타임프레임: 1h         │
 │─────────────────────────────────────────│
@@ -420,10 +460,12 @@ AI가 파싱한 전략 JSON을 시각적 카드로 렌더링:
 
 카드에 표시하는 필드 (README 4-1 "출력" 항목 전체 반영):
 - 진입 조건 (entry conditions)
-- 포지션 사이즈 (position size)
+- 투자금 (investment amount, 사용자 직접 입력 가능)
 - 익절 규칙 (take profit)
 - 손절 규칙 (stop loss)
-- 대상 토큰 필터 (filters)
+- 대상 토큰 페어 + 타임프레임
+
+> **참고**: 포지션 수(max_positions)는 항상 1로 고정. 투자금(size_value)이 곧 init_cash.
 
 ### 5-4. 프롬프트 설계 핵심
 
@@ -444,7 +486,7 @@ AI가 파싱한 전략 JSON을 시각적 카드로 렌더링:
 parsed_strategy (JSON)
         ↓
 ┌───────────────────────┐
-│ 데이터 수집            │ Birdeye REST API
+│ 데이터 수집            │ Binance REST API
 │ OHLCV + Volume        │ → pandas DataFrame 캐싱
 └───────────┬───────────┘
             ▼
@@ -452,7 +494,7 @@ parsed_strategy (JSON)
 │ VectorBT 백테스트     │
 │ - 진입/퇴장 시그널 생성 │
 │ - 포지션 사이즈 적용    │
-│ - 수수료 0.3% 반영     │
+│ - 수수료 0.04% 반영    │
 └───────────┬───────────┘
             ▼
 ┌───────────────────────┐
@@ -468,22 +510,20 @@ parsed_strategy (JSON)
 
 ### 6-2. 데이터 수집 전략
 
-MVP에서는 **미리 수집 + 캐싱** 방식:
+Binance API를 통해 **실시간 OHLCV 데이터**를 수집:
 
 ```python
-# 주요 페어의 과거 데이터를 미리 수집하여 저장
+# 주요 페어 (Binance 심볼 매핑)
 SUPPORTED_PAIRS = [
-    "SOL/USDC",   # Solana 기본
-    "RAY/USDC",   # Raydium
-    "JUP/USDC",   # Jupiter
-    "BONK/USDC",  # 밈코인 대표
-    "WIF/USDC",   # 밈코인
+    "SOL/USDC",   # Solana 기본 → SOLUSDC
+    "BTC/USDT",   # 비트코인 → BTCUSDT
+    "ETH/USDT",   # 이더리움 → ETHUSDT
 ]
 
-# Birdeye OHLCV API
-# GET /defi/ohlcv?address={token}&type={timeframe}
-# 최근 90일 데이터 수집 → PostgreSQL 저장
-# 1시간봉 기준: 90 * 24 = 2,160 캔들/페어
+# Binance Klines API (무료, API 키 불필요)
+# GET /api/v3/klines?symbol=SOLUSDC&interval=1h&limit=1000
+# 최근 30일~1000봉 데이터 수집 → pandas DataFrame
+# 실시간 가격: Jupiter Quote API (Solana 토큰용)
 ```
 
 ### 6-3. 지표 계산
@@ -505,11 +545,11 @@ SUPPORTED_PAIRS = [
 1) 프론트엔드: Phantom 지갑 연결 요청
 2) 사용자: Phantom에서 연결 승인
 3) 프론트엔드: wallet.publicKey 획득
-4) 프론트엔드 → 백엔드: POST /auth/wallet { walletAddress }
-5) 백엔드: nonce 생성 → 반환
+4) 프론트엔드 → 백엔드: POST /auth/wallet { wallet_address }
+5) 백엔드: nonce 생성 → 반환 (rate limit: 10/min)
 6) 프론트엔드: nonce를 Phantom으로 서명 요청
 7) 사용자: 서명 승인
-8) 프론트엔드 → 백엔드: POST /auth/verify { walletAddress, signature, nonce }
+8) 프론트엔드 → 백엔드: POST /auth/verify { wallet_address, signature, nonce } (rate limit: 5/min)
 9) 백엔드: 서명 검증 → JWT 토큰 발급
 10) 이후 모든 API 호출에 JWT 포함
 ```
@@ -531,7 +571,6 @@ NEXT_PUBLIC_SOLANA_NETWORK=mainnet-beta
 
 # Backend (.env)
 GEMINI_API_KEY=xxx
-BIRDEYE_API_KEY=xxx
 SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_SERVICE_KEY=xxx
 JWT_SECRET=xxx
@@ -549,7 +588,7 @@ CORS_ORIGINS=https://tradecoach.ai,http://localhost:3000
 | **D1** | 프로젝트 스캐폴딩 | Next.js + FastAPI + Supabase 초기 설정, DB 마이그레이션 | 서훈 |
 | **D2** | 랜딩 페이지 | pencil 디자인 → 코드 변환 (10개 섹션) | 서훈 |
 | **D3** | 채팅 UI + Gemini 멀티모달 연동 | 채팅 UI (텍스트+이미지 입력), Gemini 멀티모달 API, 전략 파싱 프롬프트, 전략 카드 렌더링 | 서훈 |
-| **D4** | 백테스트 엔진 | VectorBT 백테스트, Birdeye 데이터 수집, 결과 저장 | 서훈+인희 |
+| **D4** | 백테스트 엔진 | VectorBT 백테스트, Binance 데이터 수집, 결과 저장 | 서훈+인희 |
 | **D5** | 백테스트 시각화 + AI 코칭 | 차트 렌더링, 코칭 대화 루프, 전략 수정 재백테스트 | 서훈+인희 |
 | **D6** | 지갑 연동 + 전략 저장 | Phantom 인증, 전략 CRUD, 대화 히스토리 | 서훈 |
 | **D7** | 통합 테스트 + 배포 + 데모 | Vercel/Railway 배포, 시연 시나리오 준비 | 전원 |
@@ -680,7 +719,7 @@ Backend: gemini.modify_strategy(current_strategy, user_request)
 
 | 리스크 | 영향 | 대응 |
 |--------|------|------|
-| Birdeye API 호출 제한 | 백테스트 데이터 부족 | 주요 5개 페어 데이터 미리 수집/캐싱 |
+| Binance API 호출 제한 | 백테스트 데이터 부족 | 무료 API, 1000봉 단위 수집 |
 | Gemini API 지연 | 채팅 응답 느림 | 스트리밍 응답, 로딩 UI |
 | Vercel 서버리스 한계 | WebSocket 불가 | MVP는 REST 폴링, Post-MVP에서 Railway WS |
 | VectorBT 학습 곡선 | 개발 지연 | 인희님 자문 + 간단한 전략부터 |

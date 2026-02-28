@@ -1,7 +1,7 @@
 # TradeCoach AI — 프로젝트 구체화 설계서
 
 [![Solana](https://img.shields.io/badge/Solana-14F195?style=flat-square&logo=solana&logoColor=black)](https://solana.com)
-[![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Next.js_15-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Gemini](https://img.shields.io/badge/Gemini_2.5-8E75B6?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_v4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
@@ -13,7 +13,7 @@
 
 ### 1. 저장소 복제
 ```bash
-git clone https://github.com/team-aithor/TradeCoach-AI.git
+git clone https://github.com/Aithor-organization/TradeCoach-AI.git
 cd TradeCoach-AI
 ```
 
@@ -21,7 +21,7 @@ cd TradeCoach-AI
 ```bash
 cd backend
 pip install -r requirements.txt
-cp .env.example .env          # API 키 설정: GEMINI_API_KEY, BIRDEYE_API_KEY, SUPABASE_URL 등
+cp .env.example .env          # API 키 설정: GEMINI_API_KEY, SUPABASE_URL 등
 uvicorn main:app --reload     # http://localhost:8000
 ```
 
@@ -33,7 +33,7 @@ cp .env.example .env.local
 npm run dev                   # http://localhost:3000
 ```
 
-> 자세한 설치/배포 가이드: **[docs/USAGE.md](docs/USAGE.md)**
+> 기술 아키텍처: **[docs/architecture.md](docs/architecture.md)**
 
 ---
 
@@ -51,7 +51,7 @@ npm run dev                   # http://localhost:3000
 ### 한 줄 소개: 누구나 자연어로 트레이딩 전략을 만들고, AI 코치에게 검증받는 솔라나 기반 플랫폼
 ### 대상 블록체인: Solana
 
-> **[사용 가이드 (USAGE.md)](docs/USAGE.md)** — 설치, 실행, API 레퍼런스, 배포 방법을 안내합니다.
+> 기술 아키텍처 설계: **[docs/architecture.md](docs/architecture.md)**
 
 ---
 ## Demo Screenshots
@@ -137,7 +137,8 @@ AI 코칭 (리스크 분석 + 개선점 제안)
 - **Gemini 3.1 Pro:** 핵심 AI 엔진. 멀티모달 입력(자연어, 이미지, 텍스트) → 전략 파싱 + 대화형 코칭. 차트 이미지를 읽어 패턴을 해석하고 전략으로 변환하는 것까지 가능.
 - **RAG (Retrieval-Augmented Generation):** 솔라나 토큰 데이터(가격, 거래량, 유동성, 토큰 정보) + 트레이딩 지식 베이스를 실시간으로 연동하여 AI의 코칭 품질을 높임.
 ### 5-2. 데이터 레이어
-- **Birdeye API / Helius API:** 솔라나 DEX 온체인 데이터 수집 (과거 가격, 거래량, 유동성 등). 백테스트 엔진의 데이터 소스.
+- **Binance API:** OHLCV 과거 데이터 수집 (가격, 거래량). 백테스트 엔진의 데이터 소스.
+- **Jupiter Quote API:** 솔라나 토큰 실시간 가격 조회 (무료, API 키 불필요).
 - **백테스트 엔진:** Python FastAPI 기반. 전략을 과거 데이터에 적용하여 수익률, MDD, 샤프 비율, 승률 등 정량 지표를 산출.
 ### 5-3. 프론트엔드
 - **Next.js + TailwindCSS:** 채팅 기반 UI로 전략 빌딩과 AI 코칭 대화를 구현. 전략 카드, 백테스트 결과 차트 등 시각화.
