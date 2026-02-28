@@ -38,7 +38,6 @@ export default function BacktestChart({ equityCurve, metrics, tradeLog, actualPe
       chart = createChart(chartRef.current, {
         width: chartRef.current!.clientWidth,
         height: 260,
-        attributionLogo: false,
         layout: {
           background: { color: "#0F172A" },
           textColor: "#94A3B8",
