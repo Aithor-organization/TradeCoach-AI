@@ -130,14 +130,28 @@ async def get_or_create_user_by_email(email: str, name: str) -> Optional[dict]:
         )
         if res.status_code == 200 and res.json():
             return res.json()[0]
-        # 신규 생성
+        # 신규 생성 (display_name이 스키마에 없을 수 있으므로 최소 필드만)
         res = await client.post(
             _rest_url("users"),
             headers=_headers(),
-            json={"wallet_address": email, "display_name": name, "tier": "free"},
+            json={"wallet_address": email, "tier": "free"},
         )
         if res.status_code in (200, 201) and res.json():
-            return res.json()[0]
+            data = res.json()
+            user = data[0] if isinstance(data, list) else data
+            # display_name 업데이트 시도 (컬럼 없으면 무시)
+            try:
+                await client.patch(
+                    _rest_url("users"),
+                    headers=_headers(),
+                    params={"id": f"eq.{user['id']}"},
+                    json={"display_name": name},
+                )
+            except Exception:
+                pass
+            user["display_name"] = name
+            return user
+        logger.warning(f"Supabase user creation failed: {res.status_code} {res.text}")
         return None
 
 
