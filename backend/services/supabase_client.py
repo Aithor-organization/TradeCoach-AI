@@ -162,8 +162,8 @@ async def get_strategies(user_id: Optional[str] = None) -> list:
         async with httpx.AsyncClient(timeout=5.0) as client:
             params: dict = {"select": "*", "order": "created_at.desc", "limit": "50"}
             if user_id:
-                # 내 전략 + 소유자 없는 전략 모두 조회
-                params["or"] = f"(user_id.eq.{user_id},user_id.is.null)"
+                # 로그인 사용자: 본인 전략만 조회
+                params["user_id"] = f"eq.{user_id}"
             res = await client.get(
                 _rest_url("strategies"),
                 headers=_headers(),
