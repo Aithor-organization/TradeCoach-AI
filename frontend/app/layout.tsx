@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import WalletProvider from "@/components/wallet/WalletProvider";
 import { ToastProvider } from "@/components/common/Toast";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
 
+const GA_ID = "G-2YJY4GB90E";
+
 export const metadata: Metadata = {
-  title: "TradeCoach AI - AI 트레이딩 코치",
-  description: "AI가 당신을 더 나은 트레이더로 만들어줍니다. 솔라나 DEX 트레이딩 전략 분석, 백테스트, AI 코칭.",
+  title: "TradeCoach AI - AI Trading Coach",
+  description: "AI makes you a better trader. Solana DEX trading strategy analysis, backtesting, and AI coaching.",
   keywords: ["TradeCoach", "AI", "trading", "Solana", "DEX", "backtesting"],
 };
 
@@ -16,8 +19,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="en">
       <head>
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_ID}');
+          `}
+        </Script>
         <link
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
           rel="stylesheet"
