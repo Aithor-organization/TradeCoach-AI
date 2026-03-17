@@ -1,11 +1,6 @@
 "use client";
 
-import { useLanguageStore } from "@/stores/languageStore";
-import { t } from "@/lib/i18n";
-
 export default function ChatMockup() {
-  const { language } = useLanguageStore();
-
   return (
     <section className="py-8 px-6 lg:px-[120px]">
       <div className="max-w-4xl mx-auto">
@@ -16,62 +11,18 @@ export default function ChatMockup() {
             <div className="w-3 h-3 rounded-full bg-[#EF4444]" />
             <div className="w-3 h-3 rounded-full bg-[#EAB308]" />
             <div className="w-3 h-3 rounded-full bg-[#22C55E]" />
-            <span className="ml-3 text-xs text-[#475569] font-mono">tradecoach.ai/chat</span>
+            <span className="ml-3 text-xs text-[#475569] font-mono">tradecoach.ai/demo</span>
           </div>
 
-          {/* 채팅 내용 */}
-          <div className="p-6 space-y-4">
-            {/* 사용자 메시지 */}
-            <div className="flex justify-end">
-              <div className="bg-[#22D3EE15] border border-[#22D3EE30] rounded-lg px-4 py-3 max-w-md">
-                <p className="text-sm text-white">
-                  {t("mockup.user", language)}
-                </p>
-              </div>
-            </div>
-
-            {/* AI 응답 */}
-            <div className="flex justify-start">
-              <div className="bg-[#0F172A] rounded-lg px-4 py-3 max-w-md border border-[#22D3EE10]">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-mono font-bold text-[#22D3EE]">TradeCoach AI</span>
-                </div>
-                <p className="text-sm text-[#94A3B8]">
-                  {t("mockup.ai", language)}
-                </p>
-                {/* 미니 전략 카드 */}
-                <div className="mt-3 bg-[#1E293B] rounded-lg p-3 border border-[#22D3EE15]">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-white">{t("mockup.stratName", language)}</span>
-                    <span className="text-xs font-mono text-[#475569]">v1</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-xs text-[#475569]">{t("mockup.tp", language)}</p>
-                      <p className="text-sm font-mono font-bold text-[#22C55E]">+20%</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-[#475569]">{t("mockup.sl", language)}</p>
-                      <p className="text-sm font-mono font-bold text-[#EF4444]">-10%</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-[#475569]">{t("mockup.pos", language)}</p>
-                      <p className="text-sm font-mono font-bold text-[#22D3EE]">$100</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 입력바 */}
-          <div className="flex items-center gap-3 px-4 py-3 bg-[#0F172A] border-t border-[#1E293B]">
-            <div className="flex-1 bg-[#1E293B] rounded-lg px-4 py-2.5 border border-[#47556933]">
-              <span className="text-sm text-[#475569]">{t("mockup.placeholder", language)}</span>
-            </div>
-            <div className="w-10 h-10 rounded-lg gradient-accent flex items-center justify-center">
-              <span className="text-[#0A0F1C] text-lg">↑</span>
-            </div>
+          {/* YouTube 영상 (자동재생, 음소거, 반복) */}
+          <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+            <iframe
+              className="absolute inset-0 w-full h-full"
+              src="https://www.youtube.com/embed/pTnbKeb9dg0?autoplay=1&mute=1&loop=1&playlist=pTnbKeb9dg0&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&vq=hd1080&hd=1"
+              title="TradeCoach AI Demo"
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+            />
           </div>
         </div>
       </div>
