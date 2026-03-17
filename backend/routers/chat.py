@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from typing import Optional
 from dependencies import get_current_user_id
+from routers.auth import limiter
 import json
 import logging
 
@@ -11,7 +12,9 @@ router = APIRouter()
 
 
 @router.post("/message")
+@limiter.limit("10/minute;100/day")
 async def send_message(
+    request: Request,
     content: str = Form(...),
     strategy_id: Optional[str] = Form(None),
     history: Optional[str] = Form(None),
@@ -70,7 +73,9 @@ async def send_message(
 
 
 @router.post("/message/image")
+@limiter.limit("5/minute;50/day")
 async def send_message_with_image(
+    request: Request,
     content: str = Form(""),
     strategy_id: Optional[str] = Form(None),
     image: UploadFile = File(...),
@@ -125,7 +130,9 @@ async def send_message_with_image(
 
 
 @router.post("/message/stream")
+@limiter.limit("10/minute;100/day")
 async def send_message_stream(
+    request: Request,
     content: str = Form(...),
     strategy_id: Optional[str] = Form(None),
     history: Optional[str] = Form(None),

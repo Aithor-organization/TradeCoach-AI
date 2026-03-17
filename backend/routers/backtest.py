@@ -1,7 +1,8 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from models.backtest import BacktestRequest
 from dependencies import require_auth, get_current_user_id
+from routers.auth import limiter
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -13,7 +14,8 @@ class AnalysisRequest(BaseModel):
 
 
 @router.post("/run")
-async def run_backtest(body: BacktestRequest, user_id: str | None = Depends(get_current_user_id)):
+@limiter.limit("5/minute;30/day")
+async def run_backtest(request: Request, body: BacktestRequest, user_id: str | None = Depends(get_current_user_id)):
     """백테스트 실행"""
     from services.backtest_engine import execute_backtest
 
