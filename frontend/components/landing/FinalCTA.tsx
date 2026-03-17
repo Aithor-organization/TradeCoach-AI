@@ -1,7 +1,13 @@
+"use client";
+
 import Link from "next/link";
 import Button from "@/components/common/Button";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 export default function FinalCTA() {
+  const { language } = useLanguageStore();
+
   return (
     <section className="py-24 px-6 lg:px-[120px]">
       <div className="max-w-3xl mx-auto text-center relative">
@@ -10,16 +16,16 @@ export default function FinalCTA() {
 
         <div className="relative bg-[#0F172A] rounded-2xl p-12 border border-[#22D3EE20]">
           <h2 className="text-3xl md:text-[40px] font-bold mb-4">
-            지금 바로 시작하세요
+            {t("cta.title", language)}
           </h2>
           <p className="text-lg text-[#94A3B8] mb-8">
-            무료로 AI 트레이딩 코칭을 체험하세요.
+            {t("cta.sub1", language)}
             <br />
-            지갑 연결 없이도 3번의 백테스트가 가능합니다.
+            {t("cta.sub2", language)}
           </p>
           <Link href="/chat">
             <Button size="lg">
-              무료로 전략 만들기 →
+              {t("cta.button", language)}
             </Button>
           </Link>
         </div>

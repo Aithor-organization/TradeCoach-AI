@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 interface ImagePreviewProps {
   file: File;
@@ -9,6 +11,7 @@ interface ImagePreviewProps {
 
 export default function ImagePreview({ file, onRemove }: ImagePreviewProps) {
   const [preview, setPreview] = useState<string>("");
+  const { language } = useLanguageStore();
 
   useEffect(() => {
     const url = URL.createObjectURL(file);
@@ -22,7 +25,7 @@ export default function ImagePreview({ file, onRemove }: ImagePreviewProps) {
     <div className="mb-3 inline-block relative">
       <img
         src={preview}
-        alt="첨부 이미지"
+        alt={t("cp.attachedImage", language)}
         className="h-20 rounded-lg border border-[#22D3EE30] object-cover"
       />
       <button

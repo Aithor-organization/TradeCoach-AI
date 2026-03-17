@@ -2,6 +2,8 @@
 
 import ReactMarkdown from "react-markdown";
 import { useChatStore } from "@/stores/chatStore";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 interface BacktestSummaryProps {
     aiSummary?: string;
@@ -9,11 +11,12 @@ interface BacktestSummaryProps {
 
 export default function BacktestSummary({ aiSummary }: BacktestSummaryProps) {
     const setPendingInput = useChatStore((s) => s.setPendingInput);
+    const { language } = useLanguageStore();
 
     if (!aiSummary) return null;
 
     const handleQuickImprove = () => {
-        const prompt = `위 AI 전략 분석 리포트를 기반으로 전략을 개선해주세요:\n\n${aiSummary}`;
+        const prompt = `${t("btSummary.improvePrompt", language)}\n\n${aiSummary}`;
         setPendingInput(prompt);
     };
 
@@ -24,7 +27,7 @@ export default function BacktestSummary({ aiSummary }: BacktestSummaryProps) {
             <div className="px-5 py-3 border-b border-[#0F172A] flex items-center justify-between">
                 <label className="font-semibold text-white text-sm flex items-center gap-2">
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#D946EF] to-[#8B5CF6]">
-                        AI 전략 분석 리포트
+                        {t("btSummary.title", language)}
                     </span>
                 </label>
                 <button
@@ -32,7 +35,7 @@ export default function BacktestSummary({ aiSummary }: BacktestSummaryProps) {
                     onClick={handleQuickImprove}
                     className="px-3 py-1 text-xs font-semibold rounded-md bg-gradient-to-r from-[#D946EF] to-[#8B5CF6] text-white hover:opacity-90 transition-opacity cursor-pointer"
                 >
-                    바로 개선
+                    {t("btSummary.quickImprove", language)}
                 </button>
             </div>
 

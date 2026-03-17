@@ -32,11 +32,12 @@ async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // 채팅 API
-export async function sendMessage(content: string, strategyId?: string, history?: Array<{ role: string; content: string; metadata?: Record<string, unknown> }>) {
+export async function sendMessage(content: string, strategyId?: string, history?: Array<{ role: string; content: string; metadata?: Record<string, unknown> }>, language?: string) {
   const formData = new FormData();
   formData.append("content", content);
   if (strategyId) formData.append("strategy_id", strategyId);
   if (history && history.length > 0) formData.append("history", JSON.stringify(history));
+  if (language) formData.append("language", language);
 
   return fetcher("/chat/message", {
     method: "POST",
@@ -44,12 +45,13 @@ export async function sendMessage(content: string, strategyId?: string, history?
   });
 }
 
-export async function sendMessageWithImage(content: string, image: File, strategyId?: string, history?: Array<{ role: string; content: string; metadata?: Record<string, unknown> }>) {
+export async function sendMessageWithImage(content: string, image: File, strategyId?: string, history?: Array<{ role: string; content: string; metadata?: Record<string, unknown> }>, language?: string) {
   const formData = new FormData();
   formData.append("content", content);
   formData.append("image", image);
   if (strategyId) formData.append("strategy_id", strategyId);
   if (history && history.length > 0) formData.append("history", JSON.stringify(history));
+  if (language) formData.append("language", language);
 
   return fetcher("/chat/message/image", {
     method: "POST",
@@ -63,12 +65,14 @@ export async function sendMessageStream(
   history?: Array<{ role: string; content: string }>,
   onChunk?: (chunk: string) => void,
   onDone?: (data: { type: string; full_text: string; parsed_strategy?: Record<string, unknown> }) => void,
+  language?: string,
 ) {
   const token = typeof window !== "undefined" ? localStorage.getItem("tc_token") : null;
   const formData = new FormData();
   formData.append("content", content);
   if (strategyId) formData.append("strategy_id", strategyId);
   if (history && history.length > 0) formData.append("history", JSON.stringify(history));
+  if (language) formData.append("language", language);
 
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -171,6 +175,7 @@ export async function runBacktest(
   parsedStrategy?: Record<string, unknown>,
   startDate?: string,
   endDate?: string,
+  language?: string,
 ) {
   return fetcher("/backtest/run", {
     method: "POST",
@@ -181,6 +186,7 @@ export async function runBacktest(
       ...(parsedStrategy ? { parsed_strategy: parsedStrategy } : {}),
       ...(startDate ? { start_date: startDate } : {}),
       ...(endDate ? { end_date: endDate } : {}),
+      ...(language ? { language } : {}),
     }),
   });
 }

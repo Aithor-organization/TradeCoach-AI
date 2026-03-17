@@ -1,4 +1,11 @@
+"use client";
+
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
+
 export default function Footer() {
+  const { language } = useLanguageStore();
+
   return (
     <footer className="bg-[#0A0F1C] border-t border-[#1E293B] py-12 px-6 lg:px-[120px]">
       <div className="max-w-7xl mx-auto">
@@ -12,7 +19,7 @@ export default function Footer() {
               </span>
             </div>
             <p className="text-sm text-[#64748B] max-w-xs">
-              AI가 당신을 더 나은 트레이더로 만들어줍니다.
+              {t("footer.tagline", language)}
             </p>
           </div>
 
@@ -21,14 +28,14 @@ export default function Footer() {
             <div>
               <h4 className="text-sm font-semibold text-white mb-3">Product</h4>
               <ul className="space-y-2">
-                <li><a href="#features" className="text-sm text-[#64748B] hover:text-[#94A3B8]">Features</a></li>
-                <li><a href="#pricing" className="text-sm text-[#64748B] hover:text-[#94A3B8]">Pricing</a></li>
+                <li><a href="#features" className="text-sm text-[#64748B] hover:text-[#94A3B8]">{t("nav.features", language)}</a></li>
+                <li><a href="#pricing" className="text-sm text-[#64748B] hover:text-[#94A3B8]">{t("nav.pricing", language)}</a></li>
               </ul>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white mb-3">Resources</h4>
               <ul className="space-y-2">
-                <li><a href="#how-it-works" className="text-sm text-[#64748B] hover:text-[#94A3B8]">How It Works</a></li>
+                <li><a href="#how-it-works" className="text-sm text-[#64748B] hover:text-[#94A3B8]">{t("nav.howItWorks", language)}</a></li>
                 <li><a href="#" className="text-sm text-[#64748B] hover:text-[#94A3B8]">Documentation</a></li>
               </ul>
             </div>

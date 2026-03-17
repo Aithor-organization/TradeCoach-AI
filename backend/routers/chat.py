@@ -15,6 +15,7 @@ async def send_message(
     content: str = Form(...),
     strategy_id: Optional[str] = Form(None),
     history: Optional[str] = Form(None),
+    language: Optional[str] = Form("ko"),
 ):
     """텍스트 메시지 전송 → AI 응답 + DB 저장"""
     from services.gemini import process_chat_message
@@ -33,6 +34,7 @@ async def send_message(
             text=content,
             strategy_id=strategy_id,
             history=chat_history,
+            language=language or "ko",
         )
     except Exception as e:
         logger.error(f"AI 메시지 처리 실패: {e}", exc_info=True)
@@ -73,6 +75,7 @@ async def send_message_with_image(
     strategy_id: Optional[str] = Form(None),
     image: UploadFile = File(...),
     history: Optional[str] = Form(None),
+    language: Optional[str] = Form("ko"),
 ):
     """이미지 포함 메시지 → Gemini 멀티모달 분석 + DB 저장"""
     if not image.content_type or not image.content_type.startswith("image/"):
@@ -98,6 +101,7 @@ async def send_message_with_image(
             image=image_bytes,
             strategy_id=strategy_id,
             history=chat_history,
+            language=language or "ko",
         )
     except Exception as e:
         logger.error(f"이미지 메시지 AI 처리 실패: {e}", exc_info=True)
@@ -125,10 +129,13 @@ async def send_message_stream(
     content: str = Form(...),
     strategy_id: Optional[str] = Form(None),
     history: Optional[str] = Form(None),
+    language: Optional[str] = Form("ko"),
 ):
     """텍스트 메시지 스트리밍 → SSE 응답 + DB 저장"""
     from services.gemini import process_chat_message_stream
     from services.supabase_client import save_chat_message
+
+    lang = language or "ko"
 
     chat_history = []
     if history:
@@ -153,6 +160,7 @@ async def send_message_stream(
                 text=content,
                 strategy_id=strategy_id,
                 history=chat_history,
+                language=lang,
             ):
                 # 전략 파싱 JSON인 경우 (non-stream 폴백)
                 if chunk.startswith("{") and '"type"' in chunk:

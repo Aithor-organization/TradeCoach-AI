@@ -9,9 +9,9 @@ from google.genai import types
 from PIL import Image
 
 from config import get_settings
-from prompts.strategy_parser import STRATEGY_SYSTEM_PROMPT, build_parse_prompt
-from prompts.coaching import COACHING_SYSTEM_PROMPT
-from prompts.backtest_report import BACKTEST_REPORT_TEMPLATE
+from prompts.strategy_parser import STRATEGY_SYSTEM_PROMPT, build_parse_prompt, get_strategy_system_prompt
+from prompts.coaching import COACHING_SYSTEM_PROMPT, COACHING_SYSTEM_PROMPT_EN, get_coaching_prompt
+from prompts.backtest_report import BACKTEST_REPORT_TEMPLATE, BACKTEST_REPORT_TEMPLATE_EN
 from services.rag import build_rag_context
 from services.market_data import fetch_market_summary
 
@@ -177,27 +177,29 @@ def _repair_json(text: str) -> str:
     return s
 
 
-async def parse_strategy_text(text: str) -> dict:
+async def parse_strategy_text(text: str, language: str = "ko") -> dict:
     """텍스트 → 구조화된 전략 JSON"""
     text = _sanitize_user_input(text)
-    prompt = build_parse_prompt(text)
+    prompt = build_parse_prompt(text, language)
     result = await _safe_generate(
-        [STRATEGY_SYSTEM_PROMPT, prompt],
+        [get_strategy_system_prompt(language), prompt],
         config=_make_config(temperature=0.3, max_output_tokens=2048),
     )
     return _extract_json_from_response(result)
 
 
-async def parse_strategy_multimodal(text: str, image: bytes) -> dict:
+async def parse_strategy_multimodal(text: str, image: bytes, language: str = "ko") -> dict:
     """이미지 + 텍스트 → 전략 JSON (멀티모달)"""
     img = Image.open(io.BytesIO(image))
+    chart_prompt = "Analyze this chart image and convert it into a trading strategy." if language == "en" else "위 차트 이미지를 분석하여 트레이딩 전략으로 변환해주세요."
     contents = [
-        STRATEGY_SYSTEM_PROMPT,
+        get_strategy_system_prompt(language),
         img,
-        "위 차트 이미지를 분석하여 트레이딩 전략으로 변환해주세요.",
+        chart_prompt,
     ]
     if text:
-        contents.append(f"추가 설명: {text}")
+        extra_label = "Additional description" if language == "en" else "추가 설명"
+        contents.append(f"{extra_label}: {text}")
 
     result = await _safe_generate(
         contents,
@@ -206,10 +208,50 @@ async def parse_strategy_multimodal(text: str, image: bytes) -> dict:
     return _extract_json_from_response(result)
 
 
-async def generate_strategy_explanation(parsed: dict) -> str:
+async def generate_strategy_explanation(parsed: dict, language: str = "ko") -> str:
     """전략 JSON을 초보자 친화적으로 상세 설명"""
     strategy_json = json.dumps(parsed, ensure_ascii=False, indent=2)
-    prompt = f"""당신은 친절한 트레이딩 교육 전문가입니다.
+
+    if language == "en":
+        prompt = f"""You are a friendly trading education expert.
+Explain the following strategy JSON in simple terms that a trading beginner can easily understand, in English.
+
+## Explanation Format (Markdown)
+
+### Strategy at a Glance
+Summarize the core idea in 2-3 sentences (include analogies or simple examples)
+
+### When to Buy? (Entry Conditions)
+Explain each entry condition for beginners.
+- What each indicator is (e.g., RSI is a "thermometer that tells you if something is overbought/oversold")
+- Why this condition is a buy signal
+- What the AND/OR logic between conditions means
+
+### When to Sell? (Take Profit/Stop Loss)
+- Take profit: Automatically sell when profit reaches N% to lock in gains
+- Stop loss: Automatically sell when loss reaches N% to prevent bigger losses
+- Risk:Reward ratio calculation and meaning
+
+### Investment Settings
+- Per-trade investment amount, meaning of max simultaneous positions
+- Total maximum investment calculation
+
+### Strengths and Cautions
+- 2-3 strengths (what market conditions it works best in)
+- 2-3 cautions (what situations are risky)
+
+## Rules
+- Always add simple explanations in parentheses when using technical terms
+- Use specific numbers and examples
+- No cheerful encouragement, only practical information
+- Use markdown formatting
+
+Strategy JSON:
+```json
+{strategy_json}
+```"""
+    else:
+        prompt = f"""당신은 친절한 트레이딩 교육 전문가입니다.
 아래 전략 JSON을 트레이딩 초보자도 쉽게 이해할 수 있게 한국어로 설명해주세요.
 
 ## 설명 형식 (마크다운)
@@ -258,36 +300,42 @@ async def generate_strategy_explanation(parsed: dict) -> str:
         return ""
 
 
-async def generate_backtest_summary(strategy: dict, metrics: dict) -> str:
+async def generate_backtest_summary(strategy: dict, metrics: dict, language: str = "ko") -> str:
     """백테스트 결과(전략 + 지표)를 바탕으로 AI 요약 피드백 생성"""
+    strategy_label = "Strategy" if language == "en" else "전략"
+    no_name = "Unnamed" if language == "en" else "이름 없음"
+    metrics_label = "Backtest Metrics" if language == "en" else "백테스트 지표"
+    template = BACKTEST_REPORT_TEMPLATE_EN if language == "en" else BACKTEST_REPORT_TEMPLATE
     user_prompt = f"""
-## 전략: {strategy.get('name', '이름 없음')}
+## {strategy_label}: {strategy.get('name', no_name)}
 ```json
 {json.dumps(strategy, ensure_ascii=False, indent=2)}
 ```
 
-## 백테스트 지표
+## {metrics_label}
 ```json
 {json.dumps(metrics, ensure_ascii=False, indent=2)}
 ```
 """
     result = await _safe_generate(
-        [BACKTEST_REPORT_TEMPLATE, user_prompt],
+        [template, user_prompt],
         config=_make_config(temperature=0.5, max_output_tokens=4096),
     )
     return result
 
 
-def _build_chat_history(history: list[dict]) -> list[str]:
+def _build_chat_history(history: list[dict], language: str = "ko") -> list[str]:
     """대화 히스토리를 Gemini 프롬프트용 문자열 리스트로 변환"""
+    user_label = "User" if language == "en" else "사용자"
+    ai_label = "AI"
     parts = []
     for msg in history[-10:]:  # 최근 10개 메시지만 사용
         role = msg.get("role", "user")
         content = msg.get("content", "")
         if role == "user":
-            parts.append(f"사용자: {content}")
+            parts.append(f"{user_label}: {content}")
         else:
-            parts.append(f"AI: {content}")
+            parts.append(f"{ai_label}: {content}")
     return parts
 
 
@@ -303,13 +351,19 @@ def _extract_strategy_from_history(history: list[dict]) -> Optional[dict]:
 def _is_question_or_chat(text: str) -> bool:
     """질문/일반 대화인지 판별 (전략 파싱 시도 전 필터링)"""
     question_markers = [
+        # 한국어
         "알려줘", "알려주세요", "설명해", "설명해줘", "설명해주세요",
         "뭐야", "뭔가요", "무엇인가요", "어떻게", "어떤가요", "어떤건가요",
         "왜", "무슨", "차이", "비교", "장단점", "추천", "좋을까",
         "?", "하나요", "할까요", "인가요", "건가요", "나요",
         "방법", "팁", "주의", "조언",
+        # English
+        "what is", "what are", "how to", "how do", "how does",
+        "why", "explain", "tell me", "describe", "compare",
+        "difference", "recommend", "suggest", "tips", "advice",
+        "should i", "can you", "what about", "is it",
     ]
-    text_lower = text.strip()
+    text_lower = text.strip().lower()
     return any(m in text_lower for m in question_markers)
 
 
@@ -318,6 +372,7 @@ async def process_chat_message(
     image: Optional[bytes] = None,
     strategy_id: Optional[str] = None,
     history: Optional[list[dict]] = None,
+    language: str = "ko",
 ) -> dict:
     """채팅 메시지 처리 (텍스트 또는 멀티모달)"""
     text = _sanitize_user_input(text)
@@ -326,50 +381,52 @@ async def process_chat_message(
     try:
         # 이미지가 있으면 멀티모달 전략 파싱
         if image:
-            parsed = await parse_strategy_multimodal(text, image)
-            explanation = await generate_strategy_explanation(parsed)
+            parsed = await parse_strategy_multimodal(text, image, language=language)
+            explanation = await generate_strategy_explanation(parsed, language=language)
+            default_msg = "Analyzed the chart image and generated a strategy." if language == "en" else "차트 이미지를 분석하여 전략을 생성했습니다."
             return {
                 "type": "strategy_parsed",
-                "message": explanation or "차트 이미지를 분석하여 전략을 생성했습니다.",
+                "message": explanation or default_msg,
                 "parsed_strategy": parsed,
             }
 
         # 기존 전략이 있으면 코칭 모드 (DB 저장된 전략)
         if strategy_id:
-            return await _coaching_response(text, strategy_id, history)
+            return await _coaching_response(text, strategy_id, history, language=language)
 
         # 대화 히스토리에서 이전에 파싱된 전략이 있으면 코칭 모드
         prev_strategy = _extract_strategy_from_history(history)
         if prev_strategy:
-            return await _coaching_with_context(text, prev_strategy, history)
+            return await _coaching_with_context(text, prev_strategy, history, language=language)
 
         # 질문/일반 대화 감지 → RAG 기반 응답
         if _is_question_or_chat(text):
-            return await _general_response(text, history)
+            return await _general_response(text, history, language=language)
 
         # 새 전략 파싱 시도
         try:
-            parsed = await parse_strategy_text(text)
-            explanation = await generate_strategy_explanation(parsed)
+            parsed = await parse_strategy_text(text, language=language)
+            explanation = await generate_strategy_explanation(parsed, language=language)
+            default_msg = "Strategy analyzed. Would you like to run a backtest?" if language == "en" else "전략을 분석했습니다. 백테스트를 실행해볼까요?"
             return {
                 "type": "strategy_parsed",
-                "message": explanation or "전략을 분석했습니다. 백테스트를 실행해볼까요?",
+                "message": explanation or default_msg,
                 "parsed_strategy": parsed,
             }
         except (json.JSONDecodeError, ValueError):
             # 전략이 아닌 일반 대화
-            return await _general_response(text, history)
+            return await _general_response(text, history, language=language)
 
     except Exception as e:
         logger.error(f"Gemini API 처리 실패: {e}")
         return {
             "type": "error",
-            "message": f"AI 응답 생성에 실패했습니다. 잠시 후 다시 시도해주세요. (오류: {type(e).__name__})",
+            "message": f"Failed to generate AI response. Please try again. (Error: {type(e).__name__})" if language == "en" else f"AI 응답 생성에 실패했습니다. 잠시 후 다시 시도해주세요. (오류: {type(e).__name__})",
         }
 
 
 async def _coaching_response(
-    text: str, strategy_id: str, history: Optional[list[dict]] = None
+    text: str, strategy_id: str, history: Optional[list[dict]] = None, language: str = "ko"
 ) -> dict:
     """전략 컨텍스트 기반 코칭 응답 (DB 전략) + RAG + 시장 데이터"""
     from services.supabase_client import get_strategy_by_id
@@ -386,14 +443,14 @@ async def _coaching_response(
     # RAG: 관련 트레이딩 지식 검색
     rag_context = build_rag_context(text)
 
-    contents = [COACHING_SYSTEM_PROMPT, context]
+    contents = [get_coaching_prompt(language), context]
     if market_data:
         contents.append(market_data)
     if rag_context:
         contents.append(rag_context)
     if history:
-        contents.extend(_build_chat_history(history))
-    contents.append(f"사용자: {text}")
+        contents.extend(_build_chat_history(history, language))
+    contents.append(f"{'User' if language == 'en' else '사용자'}: {text}")
 
     result = await _safe_generate(
         contents,
@@ -406,7 +463,7 @@ async def _coaching_response(
 
 
 async def _coaching_with_context(
-    text: str, strategy: dict, history: Optional[list[dict]] = None
+    text: str, strategy: dict, history: Optional[list[dict]] = None, language: str = "ko"
 ) -> dict:
     """대화 히스토리의 전략 컨텍스트 기반 코칭 응답 + RAG + 시장 데이터"""
     context = f"현재 전략: {json.dumps(strategy, ensure_ascii=False)}"
@@ -417,14 +474,14 @@ async def _coaching_with_context(
     # RAG: 관련 트레이딩 지식 검색
     rag_context = build_rag_context(text)
 
-    contents = [COACHING_SYSTEM_PROMPT, context]
+    contents = [get_coaching_prompt(language), context]
     if market_data:
         contents.append(market_data)
     if rag_context:
         contents.append(rag_context)
     if history:
-        contents.extend(_build_chat_history(history))
-    contents.append(f"사용자: {text}")
+        contents.extend(_build_chat_history(history, language))
+    contents.append(f"{'User' if language == 'en' else '사용자'}: {text}")
 
     result = await _safe_generate(
         contents,
@@ -437,7 +494,7 @@ async def _coaching_with_context(
 
 
 async def _general_response(
-    text: str, history: Optional[list[dict]] = None
+    text: str, history: Optional[list[dict]] = None, language: str = "ko"
 ) -> dict:
     """일반 대화 응답 (히스토리 포함) + RAG + 시장 데이터"""
     # Binance 실시간 시장 데이터 (텍스트에서 토큰 감지)
@@ -446,14 +503,14 @@ async def _general_response(
     # RAG: 관련 트레이딩 지식 검색
     rag_context = build_rag_context(text)
 
-    contents = [COACHING_SYSTEM_PROMPT]
+    contents = [get_coaching_prompt(language)]
     if market_data:
         contents.append(market_data)
     if rag_context:
         contents.append(rag_context)
     if history:
-        contents.extend(_build_chat_history(history))
-    contents.append(f"사용자: {text}")
+        contents.extend(_build_chat_history(history, language))
+    contents.append(f"{'User' if language == 'en' else '사용자'}: {text}")
 
     result = await _safe_generate(
         contents,
@@ -472,10 +529,12 @@ async def process_chat_message_stream(
     text: str,
     strategy_id: Optional[str] = None,
     history: Optional[list[dict]] = None,
+    language: str = "ko",
 ) -> AsyncGenerator[str, None]:
     """채팅 메시지 스트리밍 처리 (텍스트 전용, 이미지는 기존 방식 유지)"""
     text = _sanitize_user_input(text)
     history = history or []
+    coaching_prompt = get_coaching_prompt(language)
 
     try:
         # strategy_id가 있으면 DB에서 전략 로드 후 코칭 스트리밍
@@ -485,17 +544,17 @@ async def process_chat_message_stream(
             parsed = strategy.get("parsed_strategy", {}) if strategy else {}
             context = ""
             if parsed:
-                context = f"현재 전략: {json.dumps(parsed, ensure_ascii=False)}"
+                context = f"{'Current strategy' if language == 'en' else '현재 전략'}: {json.dumps(parsed, ensure_ascii=False)}"
             market_data = await fetch_market_summary(text, parsed)
             rag_context = build_rag_context(text)
-            contents = [COACHING_SYSTEM_PROMPT, context]
+            contents = [coaching_prompt, context]
             if market_data:
                 contents.append(market_data)
             if rag_context:
                 contents.append(rag_context)
             if history:
-                contents.extend(_build_chat_history(history))
-            contents.append(f"사용자: {text}")
+                contents.extend(_build_chat_history(history, language))
+            contents.append(f"{'User' if language == 'en' else '사용자'}: {text}")
 
             async for chunk in _safe_generate_stream(
                 contents,
@@ -507,17 +566,17 @@ async def process_chat_message_stream(
         # 히스토리에서 전략 추출 → 코칭
         prev_strategy = _extract_strategy_from_history(history)
         if prev_strategy:
-            context = f"현재 전략: {json.dumps(prev_strategy, ensure_ascii=False)}"
+            context = f"{'Current strategy' if language == 'en' else '현재 전략'}: {json.dumps(prev_strategy, ensure_ascii=False)}"
             market_data = await fetch_market_summary(text, prev_strategy)
             rag_context = build_rag_context(text)
-            contents = [COACHING_SYSTEM_PROMPT, context]
+            contents = [coaching_prompt, context]
             if market_data:
                 contents.append(market_data)
             if rag_context:
                 contents.append(rag_context)
             if history:
-                contents.extend(_build_chat_history(history))
-            contents.append(f"사용자: {text}")
+                contents.extend(_build_chat_history(history, language))
+            contents.append(f"{'User' if language == 'en' else '사용자'}: {text}")
 
             async for chunk in _safe_generate_stream(
                 contents,
@@ -530,14 +589,14 @@ async def process_chat_message_stream(
         if _is_question_or_chat(text):
             market_data = await fetch_market_summary(text)
             rag_context = build_rag_context(text)
-            contents = [COACHING_SYSTEM_PROMPT]
+            contents = [coaching_prompt]
             if market_data:
                 contents.append(market_data)
             if rag_context:
                 contents.append(rag_context)
             if history:
-                contents.extend(_build_chat_history(history))
-            contents.append(f"사용자: {text}")
+                contents.extend(_build_chat_history(history, language))
+            contents.append(f"{'User' if language == 'en' else '사용자'}: {text}")
 
             async for chunk in _safe_generate_stream(
                 contents,
@@ -548,11 +607,12 @@ async def process_chat_message_stream(
 
         # 전략 파싱 시도 (스트리밍 불가 → non-stream 폴백)
         try:
-            parsed = await parse_strategy_text(text)
-            explanation = await generate_strategy_explanation(parsed)
+            parsed = await parse_strategy_text(text, language=language)
+            explanation = await generate_strategy_explanation(parsed, language=language)
+            default_msg = "Strategy analyzed. Would you like to run a backtest?" if language == "en" else "전략을 분석했습니다. 백테스트를 실행해볼까요?"
             yield json.dumps({
                 "type": "strategy_parsed",
-                "message": explanation or "전략을 분석했습니다. 백테스트를 실행해볼까요?",
+                "message": explanation or default_msg,
                 "parsed_strategy": parsed,
             }, ensure_ascii=False)
             return
@@ -562,14 +622,14 @@ async def process_chat_message_stream(
         # 일반 대화 폴백
         market_data = await fetch_market_summary(text)
         rag_context = build_rag_context(text)
-        contents = [COACHING_SYSTEM_PROMPT]
+        contents = [coaching_prompt]
         if market_data:
             contents.append(market_data)
         if rag_context:
             contents.append(rag_context)
         if history:
-            contents.extend(_build_chat_history(history))
-        contents.append(f"사용자: {text}")
+            contents.extend(_build_chat_history(history, language))
+        contents.append(f"{'User' if language == 'en' else '사용자'}: {text}")
 
         async for chunk in _safe_generate_stream(
             contents,
@@ -579,4 +639,4 @@ async def process_chat_message_stream(
 
     except Exception as e:
         logger.error(f"스트리밍 처리 실패: {e}")
-        yield f"AI 응답 생성에 실패했습니다. (오류: {type(e).__name__})"
+        yield f"Failed to generate AI response. (Error: {type(e).__name__})" if language == "en" else f"AI 응답 생성에 실패했습니다. (오류: {type(e).__name__})"

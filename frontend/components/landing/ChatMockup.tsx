@@ -1,4 +1,11 @@
+"use client";
+
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
+
 export default function ChatMockup() {
+  const { language } = useLanguageStore();
+
   return (
     <section className="py-8 px-6 lg:px-[120px]">
       <div className="max-w-4xl mx-auto">
@@ -18,7 +25,7 @@ export default function ChatMockup() {
             <div className="flex justify-end">
               <div className="bg-[#22D3EE15] border border-[#22D3EE30] rounded-lg px-4 py-3 max-w-md">
                 <p className="text-sm text-white">
-                  거래량 3배 터진 코인 소액 진입, 20% 익절 10% 손절
+                  {t("mockup.user", language)}
                 </p>
               </div>
             </div>
@@ -30,25 +37,25 @@ export default function ChatMockup() {
                   <span className="text-xs font-mono font-bold text-[#22D3EE]">TradeCoach AI</span>
                 </div>
                 <p className="text-sm text-[#94A3B8]">
-                  전략을 분석했습니다. 거래량 급증 전략으로 구조화했어요.
+                  {t("mockup.ai", language)}
                 </p>
                 {/* 미니 전략 카드 */}
                 <div className="mt-3 bg-[#1E293B] rounded-lg p-3 border border-[#22D3EE15]">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-white">📊 거래량 급증 전략</span>
+                    <span className="text-xs font-semibold text-white">{t("mockup.stratName", language)}</span>
                     <span className="text-xs font-mono text-[#475569]">v1</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
-                      <p className="text-xs text-[#475569]">익절</p>
+                      <p className="text-xs text-[#475569]">{t("mockup.tp", language)}</p>
                       <p className="text-sm font-mono font-bold text-[#22C55E]">+20%</p>
                     </div>
                     <div>
-                      <p className="text-xs text-[#475569]">손절</p>
+                      <p className="text-xs text-[#475569]">{t("mockup.sl", language)}</p>
                       <p className="text-sm font-mono font-bold text-[#EF4444]">-10%</p>
                     </div>
                     <div>
-                      <p className="text-xs text-[#475569]">포지션</p>
+                      <p className="text-xs text-[#475569]">{t("mockup.pos", language)}</p>
                       <p className="text-sm font-mono font-bold text-[#22D3EE]">$100</p>
                     </div>
                   </div>
@@ -60,7 +67,7 @@ export default function ChatMockup() {
           {/* 입력바 */}
           <div className="flex items-center gap-3 px-4 py-3 bg-[#0F172A] border-t border-[#1E293B]">
             <div className="flex-1 bg-[#1E293B] rounded-lg px-4 py-2.5 border border-[#47556933]">
-              <span className="text-sm text-[#475569]">트레이딩 전략을 설명해주세요...</span>
+              <span className="text-sm text-[#475569]">{t("mockup.placeholder", language)}</span>
             </div>
             <div className="w-10 h-10 rounded-lg gradient-accent flex items-center justify-center">
               <span className="text-[#0A0F1C] text-lg">↑</span>

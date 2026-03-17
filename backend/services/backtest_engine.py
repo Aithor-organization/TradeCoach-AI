@@ -11,12 +11,17 @@ import sys
 try:
     import coverage
     if not hasattr(coverage, 'types'):
-        import types
-        coverage.types = types.ModuleType('types')
+        import types as _types
+        coverage.types = _types.ModuleType('types')
+    # numba coverage_support.py가 참조하는 모든 속성 패치
     if getattr(coverage.types, 'Tracer', None) is None:
         class DummyTracer:
             pass
         coverage.types.Tracer = DummyTracer
+    for _attr in ('TTraceData', 'TShouldTraceFn', 'TFileDisposition',
+                  'TShouldStartContextFn', 'TWarnFn', 'TTraceFn'):
+        if getattr(coverage.types, _attr, None) is None:
+            setattr(coverage.types, _attr, None)
 except ImportError:
     pass
 
@@ -39,6 +44,7 @@ async def execute_backtest(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     parsed_strategy: Optional[dict] = None,
+    language: str = "ko",
 ) -> dict:
     """전략 기반 백테스트 실행 (vectorbt)"""
     if parsed_strategy:
@@ -101,7 +107,7 @@ async def execute_backtest(
     ai_summary = None
     try:
         from services.gemini import generate_backtest_summary
-        ai_summary = await generate_backtest_summary(parsed, result["metrics"])
+        ai_summary = await generate_backtest_summary(parsed, result["metrics"], language=language)
     except Exception as e:
         logger.warning(f"AI 분석 리포트 생성 실패 (계속 진행): {e}")
 

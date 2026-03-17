@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import type { EquityPoint, BacktestMetrics, TradeRecord, ActualPeriod } from "@/lib/types";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 interface BacktestChartProps {
   equityCurve: EquityPoint[];
@@ -10,15 +12,16 @@ interface BacktestChartProps {
   actualPeriod?: ActualPeriod;
 }
 
-function formatPeriod(period: ActualPeriod): string {
+function formatPeriod(period: ActualPeriod, language: "ko" | "en"): string {
   const fmt = (iso: string) => {
     const d = new Date(iso);
     return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
   };
-  return `${fmt(period.start)} ~ ${fmt(period.end)} (${period.candles}캔들)`;
+  return `${fmt(period.start)} ~ ${fmt(period.end)} (${period.candles} ${t("btChart.candles", language)})`;
 }
 
 export default function BacktestChart({ equityCurve, metrics, tradeLog, actualPeriod }: BacktestChartProps) {
+  const { language } = useLanguageStore();
   const chartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -101,12 +104,12 @@ export default function BacktestChart({ equityCurve, metrics, tradeLog, actualPe
       <div className="px-5 py-3 border-b border-[#0F172A] flex items-center justify-between">
         <span className="font-semibold text-white text-sm flex flex-col gap-0.5">
           <span className="flex items-center gap-2">
-            백테스트 결과
-            <span className="text-[10px] text-[#94A3B8] font-normal">(초기자본 ${metrics.init_cash?.toLocaleString() ?? "1,000"} 기준)</span>
+            {t("bt.title", language)}
+            <span className="text-[10px] text-[#94A3B8] font-normal">{"(" + t("bt.initCapital", language)} ${metrics.init_cash?.toLocaleString() ?? "1,000"} {t("btChart.basis", language) + ")"}</span>
           </span>
           {actualPeriod && (
             <span className="text-[10px] text-[#22D3EE] font-normal font-mono">
-              {formatPeriod(actualPeriod)}
+              {formatPeriod(actualPeriod, language)}
             </span>
           )}
         </span>
@@ -115,7 +118,7 @@ export default function BacktestChart({ equityCurve, metrics, tradeLog, actualPe
             {metrics.total_return > 0 ? "+" : ""}{metrics.total_return}%
           </span>
           <span className="text-[10px] text-[#94A3B8] bg-[#0F172A] px-1.5 py-0.5 rounded border border-[#1E293B]">
-            최종 수익률
+            {t("bt.finalReturn", language)}
           </span>
         </div>
       </div>
@@ -127,8 +130,8 @@ export default function BacktestChart({ equityCurve, metrics, tradeLog, actualPe
       <div className="grid grid-cols-4 gap-px bg-[#0F172A]">
         <Metric label="MDD" value={`${metrics.max_drawdown}%`} color="text-[#EF4444]" />
         <Metric label="Sharpe" value={`${metrics.sharpe_ratio}`} color="text-[#22D3EE]" />
-        <Metric label="승률" value={`${metrics.win_rate}%`} color="text-white" />
-        <Metric label="거래" value={`${metrics.total_trades}회`} color="text-white" />
+        <Metric label={t("bt.winRate", language)} value={`${metrics.win_rate}%`} color="text-white" />
+        <Metric label={t("bt.trades", language)} value={`${metrics.total_trades}`} color="text-white" />
       </div>
     </div>
   );

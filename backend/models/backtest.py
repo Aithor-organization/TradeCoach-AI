@@ -10,6 +10,7 @@ class BacktestRequest(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     parsed_strategy: Optional[dict] = None
+    language: str = "ko"
 
 
 class BacktestMetrics(BaseModel):

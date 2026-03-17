@@ -7,13 +7,15 @@ import { useChatStore } from "@/stores/chatStore";
 import ChatWindow from "@/components/chat/ChatWindow";
 import ChatInput from "@/components/chat/ChatInput";
 import { sendMessageStream, sendMessageWithImage } from "@/lib/api";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 import type { ChatMessage, ChatResponse, ParsedStrategy } from "@/lib/types";
 
 export default function ChatPage() {
   return (
     <Suspense fallback={
       <div className="h-screen flex items-center justify-center bg-[#0A0F1C] text-[#475569]">
-        로딩 중...
+        Loading...
       </div>
     }>
       <ChatPageInner />
@@ -38,12 +40,14 @@ function ChatPageInner() {
     clearChat,
   } = useChatStore();
 
+  const { language, toggleLanguage } = useLanguageStore();
+
   const handleSend = useCallback(async (text: string, image?: File) => {
     // 사용자 메시지 추가
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
-      content: text || (image ? "차트 이미지 분석 요청" : ""),
+      content: text || (image ? t("strategy.imageAnalysis", language) : ""),
       imageUrl: image ? URL.createObjectURL(image) : undefined,
       created_at: new Date().toISOString(),
     };
@@ -60,7 +64,7 @@ function ChatPageInner() {
     try {
       if (image) {
         // 이미지 첨부 시 기존 non-streaming 방식 유지
-        const response = await sendMessageWithImage(text, image, currentStrategyId || undefined, history) as ChatResponse;
+        const response = await sendMessageWithImage(text, image, currentStrategyId || undefined, history, language) as ChatResponse;
         const aiMsg: ChatMessage = {
           id: `ai-${Date.now()}`,
           role: "assistant",
@@ -104,20 +108,21 @@ function ChatPageInner() {
             });
             if (parsedStrat) setCurrentStrategy(parsedStrat);
           },
+          language,
         );
       }
     } catch (error) {
       const errorMsg: ChatMessage = {
         id: `error-${Date.now()}`,
         role: "assistant",
-        content: `오류가 발생했습니다: ${error instanceof Error ? error.message : "알 수 없는 오류"}. 백엔드 서버가 실행 중인지 확인해주세요.`,
+        content: `${t("error.aiResponse", language)}: ${error instanceof Error ? error.message : "Unknown error"}. ${t("error.checkServer", language)}`,
         created_at: new Date().toISOString(),
       };
       addMessage(errorMsg);
     } finally {
       setLoading(false);
     }
-  }, [messages, addMessage, updateMessage, setLoading, currentStrategyId, setCurrentStrategy]);
+  }, [messages, addMessage, updateMessage, setLoading, currentStrategyId, setCurrentStrategy, language]);
 
   // 전략 상세 페이지에서 진입 시 자동 코칭 시작
   useEffect(() => {
@@ -128,15 +133,15 @@ function ChatPageInner() {
 
     // 전략 요약 + 백테스트 결과를 포함한 시스템 메시지 구성
     const ps = currentStrategy;
-    const conditions = ps.entry?.conditions?.map(c => c.description || `${c.indicator} ${c.operator} ${c.value}`).join(", ") || "없음";
-    let contextMsg = `[전략 분석 요청]\n전략명: ${ps.name}\n진입조건: ${conditions}\n익절: ${ps.exit?.take_profit?.value ?? "미설정"}%\n손절: ${ps.exit?.stop_loss?.value ?? "미설정"}%\n타임프레임: ${ps.timeframe || "1h"}\n대상: ${ps.target_pair || "SOL/USDC"}`;
+    const conditions = ps.entry?.conditions?.map(c => c.description || `${c.indicator} ${c.operator} ${c.value}`).join(", ") || t("ctx.none", language);
+    let contextMsg = `${t("ctx.strategyRequest", language)}\n${t("ctx.strategyName", language)} ${ps.name}\n${t("ctx.entryCondition", language)} ${conditions}\n${t("ctx.takeProfit", language)} ${ps.exit?.take_profit?.value ?? t("ctx.notSet", language)}%\n${t("ctx.stopLoss", language)} ${ps.exit?.stop_loss?.value ?? t("ctx.notSet", language)}%\n${t("ctx.timeframe", language)} ${ps.timeframe || "1h"}\n${t("ctx.target", language)} ${ps.target_pair || "SOL/USDC"}`;
 
     if (lastBacktestResult) {
       const m = lastBacktestResult.metrics;
-      contextMsg += `\n\n[백테스트 결과]\n총 수익률: ${m.total_return}%\n최대 낙폭(MDD): ${m.max_drawdown}%\n샤프비율: ${m.sharpe_ratio}\n승률: ${m.win_rate}%\n총 거래수: ${m.total_trades}회`;
+      contextMsg += `\n\n${t("ctx.backtestResult", language)}\n${t("ctx.totalReturn", language)} ${m.total_return}%\n${t("ctx.mdd", language)} ${m.max_drawdown}%\n${t("ctx.sharpe", language)} ${m.sharpe_ratio}\n${t("ctx.winRate", language)} ${m.win_rate}%\n${t("ctx.totalTrades", language)} ${m.total_trades}`;
     }
 
-    contextMsg += "\n\n이 전략의 강점과 약점을 분석하고, 개선 방향을 제안해주세요.";
+    contextMsg += `\n\n${t("ctx.coachingPrompt", language)}`;
 
     // 시스템 메시지를 사용자 메시지로 표시
     const userMsg: ChatMessage = {
@@ -178,12 +183,13 @@ function ChatPageInner() {
             });
             if (parsedStrat) setCurrentStrategy(parsedStrat);
           },
+          language,
         );
       } catch (error) {
         addMessage({
           id: `error-${Date.now()}`,
           role: "assistant",
-          content: `코칭 요청 중 오류: ${error instanceof Error ? error.message : "알 수 없는 오류"}`,
+          content: `${t("error.coaching", language)}: ${error instanceof Error ? error.message : "Unknown error"}`,
           created_at: new Date().toISOString(),
         });
       }
@@ -207,32 +213,42 @@ function ChatPageInner() {
             <>
               <span className="text-[#475569]">/</span>
               <span className="text-xs text-[#94A3B8] truncate max-w-[200px]">
-                {currentStrategy.name} 코칭 중
+                {currentStrategy.name} {t("chat.coaching", language)}
               </span>
             </>
           )}
         </div>
         <div className="flex items-center gap-3">
+          {/* 언어 토글 */}
+          <button
+            onClick={toggleLanguage}
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#1E293B] border border-[#22D3EE20] hover:border-[#22D3EE50] transition-colors cursor-pointer"
+            title={language === "ko" ? "Switch to English" : "한국어로 전환"}
+          >
+            <span className={`text-xs font-bold ${language === "ko" ? "text-[#22D3EE]" : "text-[#475569]"}`}>한</span>
+            <span className="text-xs text-[#475569]">/</span>
+            <span className={`text-xs font-bold ${language === "en" ? "text-[#22D3EE]" : "text-[#475569]"}`}>EN</span>
+          </button>
           <Link
             href="/strategies"
             className="text-xs text-[#94A3B8] hover:text-white transition-colors"
           >
-            전략 목록
+            {t("chat.strategies", language)}
           </Link>
           <button
             onClick={() => clearChat()}
             className="text-xs text-[#94A3B8] hover:text-white cursor-pointer"
           >
-            새 대화
+            {t("chat.newChat", language)}
           </button>
         </div>
       </header>
 
       {/* 채팅 영역 */}
-      <ChatWindow onExampleClick={(text) => handleSend(text)} />
+      <ChatWindow onExampleClick={(text) => handleSend(text)} language={language} />
 
       {/* 입력 바 */}
-      <ChatInput onSend={handleSend} />
+      <ChatInput onSend={handleSend} language={language} />
     </div>
   );
 }

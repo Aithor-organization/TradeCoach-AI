@@ -8,6 +8,8 @@ import type { Strategy, ChatResponse } from "@/lib/types";
 import TokenPrices from "@/components/market/TokenPrices";
 import Skeleton from "@/components/common/Skeleton";
 import OnboardingBanner from "@/components/common/OnboardingBanner";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 type Tab = "examples" | "my";
 
@@ -22,6 +24,7 @@ export default function StrategiesPage() {
   const [newStrategyText, setNewStrategyText] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+  const { language } = useLanguageStore();
 
   useEffect(() => {
     getStrategies()
@@ -41,12 +44,12 @@ export default function StrategiesPage() {
   const handleDeleteStrategy = async (e: React.MouseEvent, strategyId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm("이 전략을 삭제하시겠습니까? 관련 백테스트 기록도 함께 삭제됩니다.")) return;
+    if (!window.confirm(t("sp.deleteConfirm", language))) return;
     try {
       await deleteStrategy(strategyId);
       setStrategies(prev => prev.filter(s => s.id !== strategyId));
     } catch {
-      alert("전략 삭제에 실패했습니다.");
+      alert(t("sp.deleteFailed", language));
     }
   };
 
@@ -59,13 +62,13 @@ export default function StrategiesPage() {
       const response = await sendMessage(newStrategyText.trim()) as ChatResponse;
 
       if (!response.parsed_strategy) {
-        setCreateError("전략을 파싱할 수 없습니다. 더 구체적으로 설명해주세요.");
+        setCreateError(t("sp.parseFailed", language));
         setCreating(false);
         return;
       }
 
       const saved = await saveStrategy(
-        response.parsed_strategy.name || "새 전략",
+        response.parsed_strategy.name || (language === "en" ? "New Strategy" : "새 전략"),
         response.parsed_strategy as unknown as Record<string, unknown>,
         newStrategyText.trim(),
       ) as { id?: string };
@@ -73,11 +76,11 @@ export default function StrategiesPage() {
       if (saved?.id && saved.id !== "local-strategy") {
         router.push(`/strategies/${saved.id}`);
       } else {
-        setCreateError("전략이 생성되었지만 DB 저장에 실패했습니다.");
+        setCreateError(t("sp.dbSaveFailed", language));
         setCreating(false);
       }
     } catch (e) {
-      setCreateError(e instanceof Error ? e.message : "전략 생성 실패");
+      setCreateError(e instanceof Error ? e.message : t("sp.createFailed", language));
       setCreating(false);
     }
   };
@@ -94,13 +97,13 @@ export default function StrategiesPage() {
             </span>
           </Link>
           <span className="text-[#475569]">/</span>
-          <span className="text-sm text-[#94A3B8]">전략</span>
+          <span className="text-sm text-[#94A3B8]">{t("sp.breadcrumb", language)}</span>
         </div>
         <button
           onClick={() => { setActiveTab("my"); setShowModal(true); }}
           className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 transition cursor-pointer"
         >
-          + 새 전략
+          {t("sp.newStrategy", language)}
         </button>
       </header>
 
@@ -110,7 +113,7 @@ export default function StrategiesPage() {
 
         {/* 실시간 토큰 가격 */}
         <div className="mb-8">
-          <h2 className="text-xs font-semibold text-[#475569] uppercase tracking-wider mb-3">실시간 시세</h2>
+          <h2 className="text-xs font-semibold text-[#475569] uppercase tracking-wider mb-3">{t("sp.realtimePrices", language)}</h2>
           <TokenPrices />
         </div>
 
@@ -123,7 +126,7 @@ export default function StrategiesPage() {
                 : "text-[#94A3B8] hover:text-white"
               }`}
           >
-            내 전략
+            {t("sp.myStrategies", language)}
             <span className="ml-1.5 text-xs opacity-70">({myStrategies.length})</span>
           </button>
           <button
@@ -133,7 +136,7 @@ export default function StrategiesPage() {
                 : "text-[#94A3B8] hover:text-white"
               }`}
           >
-            예시 템플릿
+            {t("sp.exampleTemplates", language)}
             <span className="ml-1.5 text-xs opacity-70">({exampleStrategies.length})</span>
           </button>
         </div>
@@ -141,8 +144,8 @@ export default function StrategiesPage() {
         {/* 탭 설명 */}
         <p className="text-sm text-[#475569] mb-6">
           {activeTab === "examples"
-            ? "검증된 투자 전략 템플릿입니다. 클릭하여 상세 정보와 백테스트를 확인한 후 가져올 수 있습니다."
-            : "AI와 대화하며 자유롭게 수정할 수 있는 내 전략입니다."}
+            ? t("sp.examplesDesc", language)
+            : t("sp.myDesc", language)}
         </p>
 
         {loading ? (
@@ -163,8 +166,8 @@ export default function StrategiesPage() {
             <span className="text-5xl mb-4 block text-[#475569]">{activeTab === "examples" ? "--" : "+"}</span>
             <p className="text-[#94A3B8] mb-4">
               {activeTab === "examples"
-                ? "예시 템플릿이 없습니다."
-                : "아직 내 전략이 없습니다. 예시 템플릿에서 가져오거나 새로 만들어보세요."}
+                ? t("sp.noExamples", language)
+                : t("sp.noStrategies", language)}
             </p>
             {activeTab === "my" && (
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -172,13 +175,13 @@ export default function StrategiesPage() {
                   onClick={() => setActiveTab("examples")}
                   className="px-5 py-3 rounded-lg bg-[#1E293B] border border-[#22D3EE30] text-[#22D3EE] font-semibold hover:border-[#22D3EE60] transition cursor-pointer"
                 >
-                  예시 템플릿 보기
+                  {t("sp.viewExamples", language)}
                 </button>
                 <button
                   onClick={() => setShowModal(true)}
                   className="px-5 py-3 rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] font-semibold hover:opacity-90 transition cursor-pointer"
                 >
-                  새 전략 만들기
+                  {t("sp.createNew", language)}
                 </button>
               </div>
             )}
@@ -196,14 +199,14 @@ export default function StrategiesPage() {
                   <div className="flex items-center gap-2">
                     {activeTab === "examples" && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-[#22D3EE]/10 text-[#22D3EE]">
-                        템플릿
+                        {t("sp.template", language)}
                       </span>
                     )}
                     {activeTab === "my" && (
                       <button
                         onClick={(e) => handleDeleteStrategy(e, s.id)}
                         className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-[#EF4444]/20 transition cursor-pointer"
-                        title="전략 삭제"
+                        title={t("sp.deleteStrategy", language)}
                       >
                         <svg className="w-4 h-4 text-[#94A3B8] hover:text-[#EF4444]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -217,7 +220,7 @@ export default function StrategiesPage() {
                   <span>{s.parsed_strategy.target_pair}</span>
                   <span>{s.parsed_strategy.timeframe}</span>
                   {activeTab === "my" && (
-                    <span>{new Date(s.created_at).toLocaleDateString("ko-KR")}</span>
+                    <span>{new Date(s.created_at).toLocaleDateString(language === "en" ? "en-US" : "ko-KR")}</span>
                   )}
                 </div>
               </Link>
@@ -231,7 +234,7 @@ export default function StrategiesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-[#1E293B] rounded-2xl border border-[#22D3EE20] w-full max-w-lg mx-4 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#0F172A]">
-              <h2 className="text-lg font-bold text-white">새 전략 만들기</h2>
+              <h2 className="text-lg font-bold text-white">{t("sp.modalTitle", language)}</h2>
               <button
                 onClick={() => { setShowModal(false); setCreateError(""); setNewStrategyText(""); }}
                 className="text-[#475569] hover:text-white transition cursor-pointer text-xl"
@@ -242,12 +245,12 @@ export default function StrategiesPage() {
 
             <div className="px-6 py-5">
               <p className="text-sm text-[#94A3B8] mb-4">
-                트레이딩 전략을 자연어로 설명해주세요. AI가 구조화된 전략으로 변환합니다.
+                {t("sp.modalDesc", language)}
               </p>
               <textarea
                 value={newStrategyText}
                 onChange={e => setNewStrategyText(e.target.value)}
-                placeholder="예: RSI가 30 이하일 때 매수하고, 15% 익절, 8% 손절하는 SOL/USDC 전략"
+                placeholder={t("sp.modalPlaceholder", language)}
                 className="w-full bg-[#0F172A] text-white text-sm rounded-lg px-4 py-3 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none resize-none placeholder-[#475569] min-h-[120px]"
                 rows={4}
                 disabled={creating}
@@ -262,14 +265,14 @@ export default function StrategiesPage() {
                 onClick={() => { setShowModal(false); setCreateError(""); setNewStrategyText(""); }}
                 className="flex-1 py-3 text-sm font-semibold rounded-lg bg-[#0F172A] text-[#94A3B8] border border-[#22D3EE20] hover:border-[#22D3EE50] transition cursor-pointer"
               >
-                취소
+                {t("sp.cancel", language)}
               </button>
               <button
                 onClick={handleCreateStrategy}
                 disabled={creating || !newStrategyText.trim()}
                 className="flex-1 py-3 text-sm font-semibold rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
               >
-                {creating ? "AI가 전략 생성 중..." : "전략 생성 및 저장"}
+                {creating ? t("sp.creating", language) : t("sp.createAndSave", language)}
               </button>
             </div>
           </div>

@@ -2,9 +2,11 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useChatStore } from "@/stores/chatStore";
+import type { Language } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 import ImagePreview from "./ImagePreview";
 
-export default function ChatInput({ onSend }: { onSend: (text: string, image?: File) => void }) {
+export default function ChatInput({ onSend, language = "ko" }: { onSend: (text: string, image?: File) => void; language?: Language }) {
   const [text, setText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -75,7 +77,7 @@ export default function ChatInput({ onSend }: { onSend: (text: string, image?: F
           type="button"
           onClick={() => fileInputRef.current?.click()}
           className="w-10 h-10 flex-shrink-0 rounded-lg bg-[#1E293B] flex items-center justify-center text-[#94A3B8] hover:text-white hover:bg-[#22D3EE20] transition-colors cursor-pointer"
-          title="이미지 첨부"
+          title={t("input.attachImage", language)}
         >
           📎
         </button>
@@ -94,7 +96,7 @@ export default function ChatInput({ onSend }: { onSend: (text: string, image?: F
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          placeholder="트레이딩 전략을 설명해주세요... (이미지 Ctrl+V 가능)"
+          placeholder={t("input.placeholder", language)}
           className="flex-1 bg-[#1E293B] text-white text-sm rounded-lg px-4 py-3 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none resize-none min-h-[44px] placeholder-[#475569] overflow-y-auto"
           rows={1}
           disabled={isLoading}

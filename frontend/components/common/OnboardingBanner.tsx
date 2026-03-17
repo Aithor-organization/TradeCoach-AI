@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 const STORAGE_KEY = "tc_onboarding_dismissed";
 
-const STEPS = [
-  { num: "1", title: "전략 생성", desc: "AI와 대화하며 트레이딩 전략을 만드세요" },
-  { num: "2", title: "백테스트", desc: "과거 데이터로 전략 성과를 검증하세요" },
-  { num: "3", title: "AI 코칭", desc: "결과 분석과 개선 방향을 제안받으세요" },
-];
-
 export default function OnboardingBanner() {
   const [visible, setVisible] = useState(false);
+  const { language } = useLanguageStore();
+
+  const steps = [
+    { num: "1", title: t("ob.step1Title", language), desc: t("ob.step1Desc", language) },
+    { num: "2", title: t("ob.step2Title", language), desc: t("ob.step2Desc", language) },
+    { num: "3", title: t("ob.step3Title", language), desc: t("ob.step3Desc", language) },
+  ];
 
   useEffect(() => {
     if (!localStorage.getItem(STORAGE_KEY)) setVisible(true);
@@ -29,10 +32,10 @@ export default function OnboardingBanner() {
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <p className="text-[#22D3EE] text-xs font-semibold uppercase tracking-wider mb-3">
-            시작 가이드
+            {t("ob.title", language)}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-6">
-            {STEPS.map((s) => (
+            {steps.map((s) => (
               <div key={s.num} className="flex items-start gap-2">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[#22D3EE] text-[#0A0F1C] text-xs font-bold flex items-center justify-center">
                   {s.num}
@@ -47,7 +50,7 @@ export default function OnboardingBanner() {
         </div>
         <button
           onClick={dismiss}
-          aria-label="배너 닫기"
+          aria-label={t("ob.dismiss", language)}
           className="flex-shrink-0 text-[#475569] hover:text-white transition text-lg leading-none cursor-pointer"
         >
           ✕

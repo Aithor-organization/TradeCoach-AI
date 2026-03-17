@@ -25,6 +25,7 @@ async def run_backtest(body: BacktestRequest, user_id: str | None = Depends(get_
             start_date=body.start_date,
             end_date=body.end_date,
             parsed_strategy=body.parsed_strategy,
+            language=body.language,
         )
         return result
     except Exception as e:

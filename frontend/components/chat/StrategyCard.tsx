@@ -1,6 +1,8 @@
 "use client";
 
 import type { ParsedStrategy } from "@/lib/types";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 interface StrategyCardProps {
   strategy: ParsedStrategy;
@@ -25,6 +27,7 @@ function Tooltip({ text }: { text: string }) {
 }
 
 export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, isSaving, isSaved, investmentAmount, onInvestmentChange }: StrategyCardProps) {
+  const { language } = useLanguageStore();
   const tp = strategy.exit?.take_profit;
   const sl = strategy.exit?.stop_loss;
   const pos = strategy.position;
@@ -44,8 +47,8 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
       {/* 진입 조건 */}
       <div className="px-5 py-3 border-b border-[#0F172A]">
         <div className="flex items-center mb-1.5">
-          <p className="text-xs text-[#475569]">진입 조건</p>
-          <Tooltip text="이 조건이 충족되면 매수 주문을 실행합니다" />
+          <p className="text-xs text-[#475569]">{t("sc.entryConditions", language)}</p>
+          <Tooltip text={t("sc.entryTooltip", language)} />
         </div>
         {strategy.entry?.conditions?.map((cond, i) => (
           <div key={i} className="flex items-center gap-1.5 text-sm text-[#94A3B8]">
@@ -56,7 +59,7 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
         {strategy.entry?.logic && (
           <div className="flex items-center gap-1.5 text-sm text-[#475569]">
             <span className="text-[#22D3EE]">└</span>
-            <span>로직: {strategy.entry.logic}</span>
+            <span>{t("sc.logic", language) + " "}{strategy.entry.logic}</span>
           </div>
         )}
       </div>
@@ -65,18 +68,18 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
       <div className="grid grid-cols-3 divide-x divide-[#0F172A] border-b border-[#0F172A]">
         <div className="px-4 py-3 text-center">
           <div className="flex items-center justify-center mb-1">
-            <p className="text-xs text-[#475569]">익절</p>
-            <Tooltip text="목표 수익에 도달하면 자동 매도합니다" />
+            <p className="text-xs text-[#475569]">{t("sc.takeProfit", language)}</p>
+            <Tooltip text={t("sc.takeProfitTooltip", language)} />
           </div>
           <p className="font-mono text-sm font-bold text-[#22C55E]">
             +{tp?.value ?? 0}%
-            {tp?.partial?.enabled && " (절반)"}
+            {tp?.partial?.enabled && ` ${t("sc.half", language)}`}
           </p>
         </div>
         <div className="px-4 py-3 text-center">
           <div className="flex items-center justify-center mb-1">
-            <p className="text-xs text-[#475569]">손절</p>
-            <Tooltip text="손실 한도에 도달하면 자동 매도하여 손실을 제한합니다" />
+            <p className="text-xs text-[#475569]">{t("sc.stopLoss", language)}</p>
+            <Tooltip text={t("sc.stopLossTooltip", language)} />
           </div>
           <p className="font-mono text-sm font-bold text-[#EF4444]">
             {sl?.value ?? 0}%
@@ -84,8 +87,8 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
         </div>
         <div className="px-4 py-3 text-center">
           <div className="flex items-center justify-center mb-1">
-            <p className="text-xs text-[#475569]">투자금</p>
-            <Tooltip text="백테스트에 사용할 총 투자 금액 (USD)" />
+            <p className="text-xs text-[#475569]">{t("sc.investment", language)}</p>
+            <Tooltip text={t("sc.investmentTooltip", language)} />
           </div>
           <p className="font-mono text-sm font-bold text-[#22D3EE]">
             ${displayAmount.toLocaleString()}
@@ -97,7 +100,7 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
       {onInvestmentChange && (
         <div className="px-5 py-3 border-b border-[#0F172A]">
           <div className="flex items-center gap-2">
-            <label className="text-xs text-[#475569] flex-shrink-0">투자금 설정</label>
+            <label className="text-xs text-[#475569] flex-shrink-0">{t("sc.investmentSetting", language)}</label>
             <div className="flex items-center gap-1.5 flex-1">
               <span className="text-xs text-[#94A3B8]">$</span>
               <input
@@ -119,12 +122,12 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
       {/* 대상/타임프레임 */}
       <div className="flex items-center justify-between px-5 py-2.5 border-b border-[#0F172A] text-xs text-[#94A3B8]">
         <span className="flex items-center">
-          대상: <span className="font-mono text-white ml-1">{strategy.target_pair}</span>
-          <Tooltip text="매매할 토큰 페어 (예: SOL/USDC)" />
+          {t("sc.target", language)} <span className="font-mono text-white ml-1">{strategy.target_pair}</span>
+          <Tooltip text={t("sc.targetTooltip", language)} />
         </span>
         <span className="flex items-center">
-          타임프레임: <span className="font-mono text-white ml-1">{strategy.timeframe}</span>
-          <Tooltip text="차트 분석에 사용되는 캔들 간격" />
+          {t("sc.timeframe", language)} <span className="font-mono text-white ml-1">{strategy.timeframe}</span>
+          <Tooltip text={t("sc.timeframeTooltip", language)} />
         </span>
       </div>
 
@@ -137,12 +140,12 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
               disabled={isSaving}
               className="flex-1 py-2 text-xs font-semibold rounded-lg gradient-accent text-[#0A0F1C] cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSaving ? "저장 중..." : "전략 저장"}
+              {isSaving ? t("sc.saving", language) : t("sc.saveStrategy", language)}
             </button>
           )}
           {isSaved && (
             <span className="flex-1 py-2 text-xs font-semibold rounded-lg bg-[#22C55E15] text-[#22C55E] text-center border border-[#22C55E30]">
-              저장 완료
+              {t("sc.saved", language)}
             </span>
           )}
           {onRunBacktest && (
@@ -150,7 +153,7 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
               onClick={onRunBacktest}
               className="flex-1 py-2 text-xs font-semibold rounded-lg gradient-accent text-[#0A0F1C] cursor-pointer hover:opacity-90 transition-opacity"
             >
-              백테스트 실행
+              {t("sc.runBacktest", language)}
             </button>
           )}
           {onEdit && (
@@ -158,7 +161,7 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
               onClick={onEdit}
               className="flex-1 py-2 text-xs font-semibold rounded-lg bg-[#0F172A] text-[#94A3B8] border border-[#22D3EE20] cursor-pointer hover:border-[#22D3EE50] transition-colors"
             >
-              전략 수정
+              {t("sc.editStrategy", language)}
             </button>
           )}
         </div>

@@ -11,6 +11,8 @@ import BacktestSummary from "@/components/chat/BacktestSummary";
 import TradeLogTable from "@/components/chat/TradeLogTable";
 import StrategyChatPanel from "@/components/chat/StrategyChatPanel";
 import type { Strategy, ParsedStrategy, BacktestResult as BtResult, BacktestHistoryItem, BacktestMetrics, EquityPoint, TradeRecord } from "@/lib/types";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 export default function StrategyDetailPage() {
   const params = useParams();
@@ -18,6 +20,7 @@ export default function StrategyDetailPage() {
   const id = params.id as string;
   const isExample = id.startsWith("example-");
   const forkingRef = useRef(false);
+  const { language } = useLanguageStore();
 
   const [strategy, setStrategy] = useState<Strategy | null>(null);
 
@@ -135,7 +138,7 @@ export default function StrategyDetailPage() {
 
   const handleDeleteHistory = async (historyId: string, idx: number, e: React.MouseEvent) => {
     e.stopPropagation(); // 탭 선택 방지
-    if (!window.confirm("이 백테스트 기록을 삭제하시겠습니까? (사용 전략 및 거래 내역 포함)")) return;
+    if (!window.confirm(t("sd.deleteHistoryConfirm", language))) return;
 
     try {
       if (!isExample) {
@@ -164,7 +167,7 @@ export default function StrategyDetailPage() {
         setSelectedIndex(selectedIndex - 1);
       }
     } catch (err) {
-      alert("백테스트 기록 삭제에 실패했습니다.");
+      alert(t("sd.deleteHistoryFailed", language));
       console.error(err);
     }
   };
@@ -206,6 +209,7 @@ export default function StrategyDetailPage() {
         strategyWithInvestment,
         startDate || undefined,
         endDate || undefined,
+        language,
       ) as BtResult;
 
       const newItem: BacktestHistoryItem = {
@@ -249,12 +253,12 @@ export default function StrategyDetailPage() {
       : strategy?.parsed_strategy;
 
   const handleDeleteStrategy = async () => {
-    if (!window.confirm("이 전략을 삭제하시겠습니까? 관련 백테스트 기록도 함께 삭제됩니다.")) return;
+    if (!window.confirm(t("sp.deleteConfirm", language))) return;
     try {
       await deleteStrategy(id);
       router.push("/strategies");
     } catch {
-      alert("전략 삭제에 실패했습니다.");
+      alert(t("sp.deleteFailed", language));
     }
   };
 
@@ -269,21 +273,21 @@ export default function StrategyDetailPage() {
     try {
       const parsed = JSON.parse(editJson);
       if (!parsed || !parsed.name || !parsed.target_pair || !parsed.timeframe) {
-        throw new Error("필수 필드(name, target_pair, timeframe)가 누락되었습니다.");
+        throw new Error(t("sd.requiredFields", language));
       }
 
       // AI에 의한 업데이트 처리기 활용
       await handleStrategyUpdate(parsed as ParsedStrategy);
       setShowEditModal(false);
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : "JSON 형식이 올바르지 않습니다.");
+      setEditError(err instanceof Error ? err.message : t("sd.invalidJson", language));
     }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center text-[#475569]">
-        로딩 중...
+        {t("sd.loading", language)}
       </div>
     );
   }
@@ -291,9 +295,9 @@ export default function StrategyDetailPage() {
   if (!strategy) {
     return (
       <div className="min-h-screen bg-[#0A0F1C] flex flex-col items-center justify-center gap-4">
-        <p className="text-[#94A3B8]">전략을 찾을 수 없습니다.</p>
+        <p className="text-[#94A3B8]">{t("sd.notFound", language)}</p>
         <Link href="/strategies" className="text-[#22D3EE] hover:underline">
-          목록으로 돌아가기
+          {t("sd.backToList", language)}
         </Link>
       </div>
     );
@@ -314,12 +318,12 @@ export default function StrategyDetailPage() {
             </Link>
             <span className="text-[#475569]">/</span>
             <Link href="/strategies" className="text-sm text-[#94A3B8] hover:text-white transition">
-              전략
+              {t("sp.breadcrumb", language)}
             </Link>
             <span className="text-[#475569]">/</span>
             <span className="text-sm text-white">{strategy.name}</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-[#22D3EE]/10 text-[#22D3EE] ml-2">
-              예시 템플릿
+              {t("sp.exampleTemplates", language)}
             </span>
           </div>
         </header>
@@ -336,22 +340,22 @@ export default function StrategyDetailPage() {
             onClick={() => setShowImportModal(true)}
             className="w-full px-6 py-4 rounded-xl font-semibold text-base bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 transition cursor-pointer"
           >
-            내 전략으로 가져오기
+            {t("sd.importToMy", language)}
           </button>
 
           {/* 백테스트 섹션 */}
           <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE10] p-5 space-y-4">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-[#94A3B8]">백테스트</h3>
+              <h3 className="text-sm font-semibold text-[#94A3B8]">{t("sd.backtest", language)}</h3>
               <span className="text-[10px] text-[#475569] font-normal">
-                (API 데이터 제한으로 시작일로부터 41.6일 치만 조회됩니다)
+                {t("sd.apiLimit", language)}
               </span>
             </div>
 
             {/* 기간 선택 */}
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex-1 min-w-[130px]">
-                <label className="text-xs text-[#475569] mb-1 block">시작일</label>
+                <label className="text-xs text-[#475569] mb-1 block">{t("sd.startDate", language)}</label>
                 <input
                   type="date"
                   value={startDate}
@@ -360,7 +364,7 @@ export default function StrategyDetailPage() {
                 />
               </div>
               <div className="flex-1 min-w-[130px]">
-                <label className="text-xs text-[#475569] mb-1 block">종료일</label>
+                <label className="text-xs text-[#475569] mb-1 block">{t("sd.endDate", language)}</label>
                 <input
                   type="date"
                   value={endDate}
@@ -374,7 +378,7 @@ export default function StrategyDetailPage() {
                   disabled={testing}
                   className="px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
                 >
-                  {testing ? "실행 중..." : "백테스트 실행"}
+                  {testing ? t("sd.running", language) : t("sd.runBacktest", language)}
                 </button>
               </div>
             </div>
@@ -395,14 +399,14 @@ export default function StrategyDetailPage() {
                           : "bg-[#1E293B] text-[#94A3B8] border-[#1E293B] hover:bg-[#1E293B]/80 hover:text-white"
                         }`}
                     >
-                      {idx === 0 ? "최근 실행" : `이전 실행 ${idx}`}
+                      {idx === 0 ? t("sd.latestRun", language) : `${t("sd.previousRun", language)} ${idx}`}
                       <span className="ml-2 text-[10px] opacity-60 font-mono">
                         {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </button>
                     <button
                       onClick={(e) => handleDeleteHistory(item.id, idx, e)}
-                      title="이 기록 삭제"
+                      title={t("sd.deleteRecord", language)}
                       className={`px-2 py-2 border-y border-r rounded-r-lg flex items-center transition-colors group
                         ${selectedIndex === idx
                           ? "bg-[#22D3EE]/10 border-[#22D3EE]/30 hover:bg-[#EF4444]/20"
@@ -423,13 +427,13 @@ export default function StrategyDetailPage() {
                   {/* 적용 버튼 */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-[#1E293B] rounded-xl border border-[#22D3EE20] gap-3">
                     <span className="text-xs text-[#94A3B8]">
-                      조회 기간: {history[selectedIndex].startDate} ~ {history[selectedIndex].endDate}
+                      {t("sd.period", language)} {history[selectedIndex].startDate} ~ {history[selectedIndex].endDate}
                     </span>
                     <button
                       onClick={() => handleStrategyUpdate(history[selectedIndex].strategy as ParsedStrategy)}
                       className="whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0F172A] text-[#22D3EE] border border-[#22D3EE30] hover:bg-[#22D3EE10] transition-colors"
                     >
-                      이 전략(조건)으로 덮어쓰기
+                      {t("sd.applyStrategy", language)}
                     </button>
                   </div>
 
@@ -454,7 +458,7 @@ export default function StrategyDetailPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="bg-[#1E293B] rounded-2xl border border-[#22D3EE20] w-full max-w-md mx-4 overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-[#0F172A]">
-                <h2 className="text-lg font-bold text-white">내 전략으로 가져오기</h2>
+                <h2 className="text-lg font-bold text-white">{t("sd.importModalTitle", language)}</h2>
                 <button
                   onClick={() => { setShowImportModal(false); setImportName(""); }}
                   className="text-[#475569] hover:text-white transition cursor-pointer text-xl"
@@ -465,13 +469,13 @@ export default function StrategyDetailPage() {
 
               <div className="px-6 py-5">
                 <p className="text-sm text-[#94A3B8] mb-4">
-                  전략의 제목을 입력하세요. 가져온 후 AI와 대화하며 자유롭게 수정할 수 있습니다.
+                  {t("sd.importModalDesc", language)}
                 </p>
                 <input
                   type="text"
                   value={importName}
                   onChange={e => setImportName(e.target.value)}
-                  placeholder="전략 제목"
+                  placeholder={t("sd.strategyTitle", language)}
                   className="w-full bg-[#0F172A] text-white text-sm rounded-lg px-4 py-3 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none placeholder-[#475569]"
                   onKeyDown={e => { if (e.key === "Enter") handleImport(); }}
                   autoFocus
@@ -483,14 +487,14 @@ export default function StrategyDetailPage() {
                   onClick={() => { setShowImportModal(false); setImportName(""); }}
                   className="flex-1 py-3 text-sm font-semibold rounded-lg bg-[#0F172A] text-[#94A3B8] border border-[#22D3EE20] hover:border-[#22D3EE50] transition cursor-pointer"
                 >
-                  취소
+                  {t("sp.cancel", language)}
                 </button>
                 <button
                   onClick={handleImport}
                   disabled={importing || !importName.trim()}
                   className="flex-1 py-3 text-sm font-semibold rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
                 >
-                  {importing ? "가져오는 중..." : "저장"}
+                  {importing ? t("sd.importing", language) : t("sd.save", language)}
                 </button>
               </div>
             </div>
@@ -514,7 +518,7 @@ export default function StrategyDetailPage() {
           </Link>
           <span className="text-[#475569]">/</span>
           <Link href="/strategies" className="text-sm text-[#94A3B8] hover:text-white transition">
-            전략
+            {t("sp.breadcrumb", language)}
           </Link>
           <span className="text-[#475569]">/</span>
           <span className="text-sm text-white">{strategy.name}</span>
@@ -523,7 +527,7 @@ export default function StrategyDetailPage() {
           onClick={handleDeleteStrategy}
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#EF4444]/30 text-[#EF4444] hover:bg-[#EF4444]/10 transition cursor-pointer"
         >
-          전략 삭제
+          {t("sp.deleteStrategy", language)}
         </button>
       </header>
 
@@ -539,14 +543,14 @@ export default function StrategyDetailPage() {
               <svg className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              내 전략 목록
+              {t("sd.myStrategiesList", language)}
             </Link>
-            <h2 className="text-sm font-bold text-[#F8FAFC]">백테스트 리포트 목록</h2>
+            <h2 className="text-sm font-bold text-[#F8FAFC]">{t("sd.backtestHistory", language)}</h2>
           </div>
 
           <div className="p-3 mb-10 space-y-2">
             {history.length === 0 ? (
-              <p className="text-xs text-[#475569] text-center py-4">저장된 이전 백테스트 기록이 없습니다.</p>
+              <p className="text-xs text-[#475569] text-center py-4">{t("sd.noHistory", language)}</p>
             ) : (
               history.map((item, idx) => (
                 <div key={item.id} className="relative group">
@@ -559,7 +563,7 @@ export default function StrategyDetailPage() {
                   >
                     <div className="flex justify-between items-start mb-1">
                       <h3 className={`text-sm font-medium ${selectedIndex === idx ? "text-[#22D3EE]" : "text-[#F8FAFC]"}`}>
-                        {idx === 0 ? "최근 실행" : `이전 기록 ${idx}`}
+                        {idx === 0 ? t("sd.latestRun", language) : `${t("sd.previousRecord", language)} ${idx}`}
                       </h3>
                       <span className="text-[10px] opacity-60 font-mono text-[#94A3B8]">
                         {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -576,7 +580,7 @@ export default function StrategyDetailPage() {
                   </button>
                   <button
                     onClick={(e) => handleDeleteHistory(item.id, idx, e)}
-                    title="이 기록 삭제"
+                    title={t("sd.deleteRecord", language)}
                     className="absolute top-2 right-2 p-1.5 rounded-md hover:bg-[#EF4444]/20 opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <svg className={`w-3.5 h-3.5 ${selectedIndex === idx ? "text-[#22D3EE]" : "text-[#94A3B8]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -604,16 +608,16 @@ export default function StrategyDetailPage() {
             {/* 백테스트 섹션 */}
             <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE10] p-5 space-y-4">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-[#94A3B8]">백테스트</h3>
+                <h3 className="text-sm font-semibold text-[#94A3B8]">{t("sd.backtest", language)}</h3>
                 <span className="text-[10px] text-[#475569] font-normal">
-                  (API 데이터 제한으로 시작일로부터 41.6일 치만 조회됩니다)
+                  {t("sd.apiLimit", language)}
                 </span>
               </div>
 
               {/* 기간 선택 */}
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex-1 min-w-[130px]">
-                  <label className="text-xs text-[#475569] mb-1 block">시작일</label>
+                  <label className="text-xs text-[#475569] mb-1 block">{t("sd.startDate", language)}</label>
                   <input
                     type="date"
                     value={startDate}
@@ -622,7 +626,7 @@ export default function StrategyDetailPage() {
                   />
                 </div>
                 <div className="flex-1 min-w-[130px]">
-                  <label className="text-xs text-[#475569] mb-1 block">종료일</label>
+                  <label className="text-xs text-[#475569] mb-1 block">{t("sd.endDate", language)}</label>
                   <input
                     type="date"
                     value={endDate}
@@ -636,7 +640,7 @@ export default function StrategyDetailPage() {
                     disabled={testing}
                     className="px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
                   >
-                    {testing ? "실행 중..." : "백테스트 실행"}
+                    {testing ? t("sd.running", language) : t("sd.runBacktest", language)}
                   </button>
                 </div>
               </div>
@@ -650,13 +654,13 @@ export default function StrategyDetailPage() {
                   <div className="space-y-4 animate-in fade-in duration-200">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-[#1E293B] rounded-xl border border-[#22D3EE20] gap-3">
                       <span className="text-xs text-[#94A3B8]">
-                        조회 기간: {history[selectedIndex].startDate} ~ {history[selectedIndex].endDate}
+                        {t("sd.period", language)} {history[selectedIndex].startDate} ~ {history[selectedIndex].endDate}
                       </span>
                       <button
                         onClick={() => handleStrategyUpdate(history[selectedIndex].strategy as ParsedStrategy)}
                         className="whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0F172A] text-[#22D3EE] border border-[#22D3EE30] hover:bg-[#22D3EE10] transition-colors"
                       >
-                        이 전략(조건)으로 덮어쓰기
+                        {t("sd.applyStrategy", language)}
                       </button>
                     </div>
 
@@ -699,7 +703,7 @@ export default function StrategyDetailPage() {
           <div className="bg-[#1E293B] rounded-2xl border border-[#22D3EE20] w-full max-w-2xl mx-4 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#0F172A]">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>⚙️</span> 전략 직접 수정 (JSON)
+                <span>⚙️</span> {t("sd.editModalTitle", language)}
               </h2>
               <button
                 onClick={() => setShowEditModal(false)}
@@ -711,7 +715,7 @@ export default function StrategyDetailPage() {
 
             <div className="p-6 overflow-y-auto flex-1">
               <p className="text-sm text-[#94A3B8] mb-4">
-                전략의 구조를 직접 커스터마이징할 수 있습니다. 수치를 변경하거나 새로운 지표 문법 체계를 덮어쓸 수 있습니다.
+                {t("sd.editModalDesc", language)}
               </p>
               <textarea
                 value={editJson}
@@ -731,13 +735,13 @@ export default function StrategyDetailPage() {
                 onClick={() => setShowEditModal(false)}
                 className="flex-1 py-3 text-sm font-semibold rounded-lg bg-[#0F172A] text-[#94A3B8] border border-[#22D3EE20] hover:border-[#22D3EE50] transition cursor-pointer"
               >
-                취소
+                {t("sp.cancel", language)}
               </button>
               <button
                 onClick={handleSaveEditModal}
                 className="flex-1 py-3 text-sm font-semibold rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 transition cursor-pointer"
               >
-                수정 사항 반영 (덮어쓰기)
+                {t("sd.applyChanges", language)}
               </button>
             </div>
           </div>

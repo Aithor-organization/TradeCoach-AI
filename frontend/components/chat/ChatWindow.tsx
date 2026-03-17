@@ -10,9 +10,11 @@ import BacktestChart from "./BacktestChart";
 import BacktestSummary from "./BacktestSummary";
 import ReactMarkdown from "react-markdown";
 import TradeLogTable from "./TradeLogTable";
+import type { Language } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 import type { ChatMessage, BacktestResult as BacktestResultType } from "@/lib/types";
 
-export default function ChatWindow({ onExampleClick }: { onExampleClick?: (text: string) => void } = {}) {
+export default function ChatWindow({ onExampleClick, language = "ko" }: { onExampleClick?: (text: string) => void; language?: Language } = {}) {
   const { messages, isLoading } = useChatStore();
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -26,18 +28,16 @@ export default function ChatWindow({ onExampleClick }: { onExampleClick?: (text:
       {messages.length === 0 && !isLoading && (
         <div className="flex flex-col items-center justify-center h-full text-center">
           <span className="text-5xl mb-4">🤖</span>
-          <h3 className="text-lg font-semibold text-white mb-2">TradeCoach AI</h3>
-          <p className="text-sm text-[#94A3B8] max-w-md">
-            트레이딩 전략을 설명하거나, 차트 이미지를 업로드하세요.
-            <br />
-            AI가 분석하고, 백테스트하고, 개선점을 코칭합니다.
+          <h3 className="text-lg font-semibold text-white mb-2">{t("empty.title", language)}</h3>
+          <p className="text-sm text-[#94A3B8] max-w-md whitespace-pre-line">
+            {t("empty.description", language)}
           </p>
           <div className="mt-6 flex flex-wrap gap-2 justify-center">
             {[
-              "SOL/USDC 1시간봉, RSI(14) 30 이하 + 볼린저밴드 하단 터치 시 $500 매수, 익절 8% 손절 -5%",
-              "BTC/USDT 4시간봉, MACD 골든크로스 + 거래량 150% 급증 AND 조건으로 $1000 진입, 익절 7% 손절 -4%",
-              "ETH/USDT 1일봉, EMA(12/26) 골든크로스 + RSI(20) 40 이하 시 $300 매수, 익절 10% 손절 -5%",
-              "SOL/USDC 4시간봉, Stochastic RSI 20 이하 + ATR 3% 이상 변동 시 $500 매수, 익절 6% 손절 -3%",
+              t("example.1", language),
+              t("example.2", language),
+              t("example.3", language),
+              t("example.4", language),
             ].map((example) => (
               <button
                 key={example}
@@ -53,7 +53,7 @@ export default function ChatWindow({ onExampleClick }: { onExampleClick?: (text:
 
       {/* 메시지 목록 */}
       {messages.map((msg) => (
-        <MessageBubble key={msg.id} message={msg} />
+        <MessageBubble key={msg.id} message={msg} language={language} />
       ))}
 
       {/* 로딩 인디케이터 */}
@@ -77,7 +77,7 @@ export default function ChatWindow({ onExampleClick }: { onExampleClick?: (text:
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, language = "ko" }: { message: ChatMessage; language?: Language }) {
   const isUser = message.role === "user";
   const router = useRouter();
   const { addMessage } = useChatStore();
@@ -93,7 +93,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     if (!strategy) return;
     setIsSaving(true);
     try {
-      const result: any = await saveStrategy(strategy.name || "새 전략", strategy as unknown as Record<string, unknown>, message.content || "");
+      const result: any = await saveStrategy(strategy.name || (language === "en" ? "New Strategy" : "새 전략"), strategy as unknown as Record<string, unknown>, message.content || "");
       setIsSaved(true);
       if (result?.id && result.id !== "local-strategy") {
         setSavedStrategyId(result.id);
@@ -109,7 +109,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         router.push(`/strategies/${result.id}`);
       }
     } catch (e) {
-      console.error("전략 저장 실패:", e);
+      console.error("Save strategy failed:", e);
     } finally {
       setIsSaving(false);
     }
@@ -135,6 +135,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         pair,
         tf,
         savedStrategyId ? undefined : strategyWithFixedPos,
+        undefined,
+        undefined,
+        language,
       );
       // 백테스트 결과를 새 메시지로 추가
       const btResult: BacktestResultType = {
@@ -149,7 +152,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       addMessage({
         id: "bt-result-" + Date.now(),
         role: "assistant",
-        content: `백테스트 완료: ${pair} ${tf} 기준\n총 수익률 ${result.metrics?.total_return ?? 0}%, 승률 ${result.metrics?.win_rate ?? 0}%, ${result.metrics?.total_trades ?? 0}회 거래`,
+        content: language === "en"
+          ? `Backtest complete: ${pair} ${tf}\nTotal return ${result.metrics?.total_return ?? 0}%, Win rate ${result.metrics?.win_rate ?? 0}%, ${result.metrics?.total_trades ?? 0} trades`
+          : `백테스트 완료: ${pair} ${tf} 기준\n총 수익률 ${result.metrics?.total_return ?? 0}%, 승률 ${result.metrics?.win_rate ?? 0}%, ${result.metrics?.total_trades ?? 0}회 거래`,
         metadata: { type: "backtest_result", backtest_result: btResult },
         created_at: new Date().toISOString(),
       });
@@ -157,7 +162,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       addMessage({
         id: "bt-error-" + Date.now(),
         role: "assistant",
-        content: `백테스트 실행 실패: ${e.message || "서버 오류"}`,
+        content: language === "en"
+          ? `Backtest failed: ${e.message || "Server error"}`
+          : `백테스트 실행 실패: ${e.message || "서버 오류"}`,
         created_at: new Date().toISOString(),
       });
     } finally {
@@ -178,7 +185,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             {message.imageUrl && (
               <img
                 src={message.imageUrl}
-                alt="첨부 이미지"
+                alt={t("cp.attachedImage", language)}
                 className="max-w-full max-h-60 rounded-lg mb-2"
               />
             )}
@@ -212,7 +219,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] px-5 py-3 max-w-md">
                 <div className="flex items-center gap-2">
                   <span className="text-sm">📊</span>
-                  <span className="text-xs text-[#94A3B8]">백테스트 실행 중...</span>
+                  <span className="text-xs text-[#94A3B8]">{t("backtest.running", language)}</span>
                   <div className="flex gap-1 ml-auto">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "0ms" }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "150ms" }} />

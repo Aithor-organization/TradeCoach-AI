@@ -1,73 +1,77 @@
+"use client";
+
 import Button from "@/components/common/Button";
 import Link from "next/link";
-
-const PLANS = [
-  {
-    name: "Free",
-    price: "$0",
-    period: "forever",
-    description: "유저 획득 보조",
-    features: [
-      "기본 전략 빌딩",
-      "월 3회 백테스트",
-      "기본 AI 코칭",
-      "SOL/USDC 페어",
-    ],
-    cta: "무료로 시작",
-    variant: "secondary" as const,
-    highlight: false,
-  },
-  {
-    name: "Premium",
-    price: "$19.99",
-    period: "/month",
-    description: "프리미엄 구독",
-    features: [
-      "무제한 백테스트",
-      "심층 AI 코칭",
-      "실시간 전략 알림",
-      "전략 무제한 저장",
-      "모든 토큰 페어 지원",
-    ],
-    cta: "Premium 시작하기",
-    variant: "primary" as const,
-    highlight: true,
-  },
-  {
-    name: "Web3 Native",
-    price: "성과 기반",
-    period: "",
-    description: "Web3 네이티브 모델",
-    features: [
-      "Premium 전체 기능 포함",
-      "전략 NFT 마켓플레이스",
-      "검증된 전략 공유 → 로열티 수익",
-      "카피트레이딩 연동",
-      "수익 발생 시에만 과금",
-    ],
-    cta: "곧 출시 예정",
-    variant: "secondary" as const,
-    highlight: false,
-  },
-];
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 export default function Pricing() {
+  const { language } = useLanguageStore();
+
+  const plans = [
+    {
+      name: "Free",
+      price: "$0",
+      period: "forever",
+      description: t("pricing.free.desc", language),
+      features: [
+        t("pricing.free.f1", language),
+        t("pricing.free.f2", language),
+        t("pricing.free.f3", language),
+        t("pricing.free.f4", language),
+      ],
+      cta: t("pricing.free.cta", language),
+      variant: "secondary" as const,
+      highlight: false,
+    },
+    {
+      name: "Premium",
+      price: "$19.99",
+      period: "/month",
+      description: t("pricing.premium.desc", language),
+      features: [
+        t("pricing.premium.f1", language),
+        t("pricing.premium.f2", language),
+        t("pricing.premium.f3", language),
+        t("pricing.premium.f4", language),
+        t("pricing.premium.f5", language),
+      ],
+      cta: t("pricing.premium.cta", language),
+      variant: "primary" as const,
+      highlight: true,
+    },
+    {
+      name: "Web3 Native",
+      price: t("pricing.web3.price", language),
+      period: "",
+      description: t("pricing.web3.desc", language),
+      features: [
+        t("pricing.web3.f1", language),
+        t("pricing.web3.f2", language),
+        t("pricing.web3.f3", language),
+        t("pricing.web3.f4", language),
+        t("pricing.web3.f5", language),
+      ],
+      cta: t("pricing.web3.cta", language),
+      variant: "secondary" as const,
+      highlight: false,
+    },
+  ];
+
   return (
     <section id="pricing" className="py-24 px-6 lg:px-[120px]">
       <div className="max-w-7xl mx-auto">
-        {/* 섹션 헤더 */}
         <div className="text-center mb-16">
           <span className="font-mono text-xs font-medium text-[#22D3EE] tracking-wider uppercase">
             Pricing
           </span>
           <h2 className="text-3xl md:text-[40px] font-bold mt-3">
-            심플한 가격 정책
+            {t("pricing.title", language)}
           </h2>
         </div>
 
-        {/* 가격 카드 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {PLANS.map((plan) => (
+          {plans.map((plan) => (
             <div
               key={plan.name}
               className={`rounded-xl p-8 ${

@@ -1,7 +1,13 @@
+"use client";
+
 import Link from "next/link";
 import Button from "@/components/common/Button";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 
 export default function Hero() {
+  const { language } = useLanguageStore();
+
   return (
     <section className="relative pt-32 pb-16 px-6 lg:px-[120px] text-center">
       {/* 배경 글로우 효과 */}
@@ -20,29 +26,38 @@ export default function Hero() {
 
       {/* 헤드라인 */}
       <h1 className="text-4xl md:text-[64px] font-bold leading-tight mb-6 max-w-4xl mx-auto">
-        AI가 당신을 더 나은{" "}
-        <span className="gradient-text">트레이더</span>로
-        <br />
-        만들어줍니다
+        {language === "en" ? (
+          <>
+            AI makes you a better{" "}
+            <span className="gradient-text">trader</span>
+          </>
+        ) : (
+          <>
+            AI가 당신을 더 나은{" "}
+            <span className="gradient-text">트레이더</span>로
+            <br />
+            만들어줍니다
+          </>
+        )}
       </h1>
 
       {/* 서브헤드 */}
       <p className="text-lg text-[#94A3B8] mb-10 max-w-2xl mx-auto">
-        자연어로 전략을 설명하면, AI가 분석하고 백테스트하고 개선점을 코칭합니다.
+        {t("hero.sub1", language)}
         <br />
-        솔라나 DEX에서 더 현명한 트레이딩을 시작하세요.
+        {t("hero.sub2", language)}
       </p>
 
       {/* CTA 버튼 */}
       <div className="flex items-center justify-center gap-4">
         <Link href="/chat">
           <Button size="lg">
-            전략 만들기 시작 →
+            {t("hero.cta", language)}
           </Button>
         </Link>
         <a href="#how-it-works">
           <Button variant="secondary" size="lg">
-            어떻게 작동하나요?
+            {t("hero.howItWorks", language)}
           </Button>
         </a>
       </div>

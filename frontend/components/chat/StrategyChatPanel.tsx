@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sendMessage, sendMessageWithImage, sendMessageStream, getChatHistory } from "@/lib/api";
 import { useChatStore } from "@/stores/chatStore";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
 import type { ChatMessage, ChatResponse, ParsedStrategy } from "@/lib/types";
 import ImagePreview from "./ImagePreview";
 import StrategyCard from "./StrategyCard";
@@ -23,6 +25,7 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { language } = useLanguageStore();
   const pendingInput = useChatStore((s) => s.pendingInput);
   const setPendingInput = useChatStore((s) => s.setPendingInput);
 
@@ -75,8 +78,8 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
   const displayInvestment = investmentAmount ?? strategy.position?.size_value ?? 1000;
   const strategySummary = (() => {
     const ps = strategy;
-    const conditions = ps.entry?.conditions?.map(c => c.description || `${c.indicator} ${c.operator} ${c.value}`).join(", ") || "없음";
-    return `${ps.name} | 진입: ${conditions} | 익절 ${ps.exit?.take_profit?.value ?? "미설정"}% / 손절 ${ps.exit?.stop_loss?.value ?? "미설정"}% | 투자금 $${displayInvestment.toLocaleString()} | ${ps.timeframe || "1h"} ${ps.target_pair || "SOL/USDC"}`;
+    const conditions = ps.entry?.conditions?.map(c => c.description || `${c.indicator} ${c.operator} ${c.value}`).join(", ") || t("cp.none", language);
+    return `${ps.name} | ${t("sc.entryConditions", language)}: ${conditions} | ${t("sc.takeProfit", language)} ${ps.exit?.take_profit?.value ?? t("ctx.notSet", language)}% / ${t("sc.stopLoss", language)} ${ps.exit?.stop_loss?.value ?? t("ctx.notSet", language)}% | ${t("sc.investment", language)} $${displayInvestment.toLocaleString()} | ${ps.timeframe || "1h"} ${ps.target_pair || "SOL/USDC"}`;
   })();
 
   const handleSend = useCallback(async () => {
@@ -86,7 +89,7 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
     setText("");
     setAttachedImage(null);
 
-    const displayContent = image ? `${content || ""}\n[📎 이미지 첨부]` : content;
+    const displayContent = image ? `${content || ""}\n${t("cp.imageAttached", language)}` : content;
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -104,12 +107,12 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
       // 투자금 컨텍스트를 시스템 메시지로 첫 번째에 삽입
       history.unshift({
         role: "user" as const,
-        content: `[시스템 컨텍스트] 사용자가 설정한 투자금: $${displayInvestment.toLocaleString()}. 포지션은 1개로 고정. 이 금액을 기준으로 분석해주세요.`,
+        content: `${t("cp.systemContext", language)} $${displayInvestment.toLocaleString()}. ${t("cp.systemContextSuffix", language)}`,
       });
 
       // 이미지가 있으면 기존 방식 (멀티모달은 스트리밍 미지원)
       if (image) {
-        const response = await sendMessageWithImage(content || "이 차트를 분석해주세요", image, strategyId, history) as ChatResponse;
+        const response = await sendMessageWithImage(content || t("cp.analyzeChart", language), image, strategyId, history, language) as ChatResponse;
         const aiMsg: ChatMessage = {
           id: `ai-${Date.now()}`,
           role: "assistant",
@@ -156,18 +159,19 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
             onStrategyUpdate(parsedStrat);
           }
         },
+        language,
       );
     } catch {
       setMessages(prev => {
         const last = prev[prev.length - 1];
         // 빈 AI 메시지가 있으면 에러 내용으로 교체
         if (last?.role === "assistant" && !last.content) {
-          return [...prev.slice(0, -1), { ...last, content: "오류가 발생했습니다." }];
+          return [...prev.slice(0, -1), { ...last, content: t("cp.error", language) }];
         }
         return [...prev, {
           id: `error-${Date.now()}`,
           role: "assistant" as const,
-          content: "오류가 발생했습니다.",
+          content: t("cp.error", language),
           created_at: new Date().toISOString(),
         }];
       });
@@ -222,7 +226,7 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
                 <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "150ms" }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "300ms" }} />
               </div>
-              대화 기록 불러오는 중...
+              {t("cp.loadingHistory", language)}
             </div>
           </div>
         )}
@@ -235,18 +239,18 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
             </div>
             <div className="space-y-2">
               <p className="text-xs text-[#94A3B8]">
-                AI Coach가 이 전략을 이미 파악하고 있습니다.
+                {t("cp.aiReady", language)}
               </p>
               <p className="text-[10px] text-[#475569] leading-relaxed max-w-[300px]">
                 {strategySummary}
               </p>
             </div>
             <div className="space-y-1.5 w-full max-w-[280px]">
-              <p className="text-[10px] text-[#475569] mb-2">예시 질문:</p>
+              <p className="text-[10px] text-[#475569] mb-2">{t("cp.exampleQuestions", language)}</p>
               {[
-                "이 전략의 강점과 약점을 분석해줘",
-                "익절 비율을 20%로 올려줘",
-                "RSI 조건 외에 볼린저밴드도 추가해줘",
+                t("cp.example1", language),
+                t("cp.example2", language),
+                t("cp.example3", language),
               ].map((example) => (
                 <button
                   key={example}
@@ -288,7 +292,7 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
 
                 {msg.role === "assistant" && msg.metadata?.parsed_strategy && (
                   <div className="mt-4 border-t border-[#0F172A] pt-4">
-                    <div className="mb-2 text-[10px] text-[#22D3EE] font-bold">✨ 전략 업데이트 제안</div>
+                    <div className="mb-2 text-[10px] text-[#22D3EE] font-bold">{t("cp.strategyUpdate", language)}</div>
                     <StrategyCard strategy={msg.metadata.parsed_strategy as ParsedStrategy} />
                   </div>
                 )}
@@ -328,7 +332,7 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="w-8 h-8 flex-shrink-0 rounded-lg bg-[#1E293B] flex items-center justify-center text-[#94A3B8] hover:text-white hover:bg-[#22D3EE20] transition-colors cursor-pointer text-xs"
-            title="이미지 첨부"
+            title={t("cp.attachImage", language)}
           >
             📎
           </button>
@@ -346,7 +350,7 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
             onChange={e => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder="전략에 대해 질문하거나 수정을 요청하세요... (이미지 Ctrl+V 가능)"
+            placeholder={t("cp.placeholder", language)}
             className="flex-1 bg-[#1E293B] text-white text-xs rounded-lg px-3 py-2 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none resize-none min-h-[36px] placeholder-[#475569] overflow-y-auto"
             rows={1}
             disabled={isLoading}

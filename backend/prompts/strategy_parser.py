@@ -111,7 +111,132 @@ STRATEGY_SYSTEM_PROMPT = """당신은 전문 트레이딩 전략 파서입니다
 6. 인식된 지표의 파라미터를 params에 포함"""
 
 
-def build_parse_prompt(user_input: str) -> str:
+STRATEGY_SYSTEM_PROMPT_EN = """You are a professional trading strategy parser.
+You convert natural language trading strategy descriptions into structured JSON.
+
+## Supported Indicators (indicator field)
+
+### Trend Indicators
+- **rsi**: RSI (Relative Strength Index). params: {"period": 14}
+- **stoch_rsi**: Stochastic RSI. params: {"rsi_period": 14, "stoch_period": 14}
+- **ma_cross**: Moving Average Crossover (Golden Cross/Death Cross). params: {"short_period": 7, "long_period": 25}
+- **ema_cross**: Exponential Moving Average Crossover. params: {"short_period": 12, "long_period": 26}
+- **macd**: MACD Signal Crossover. params: {"fast_period": 12, "slow_period": 26, "signal_period": 9}
+- **macd_hist**: MACD Histogram. params: {"fast_period": 12, "slow_period": 26, "signal_period": 9}
+
+### Volatility Indicators
+- **bollinger_lower**: Bollinger Band Lower Touch (mean reversion buy). params: {"period": 20, "std_dev": 2.0}
+- **bollinger_upper**: Bollinger Band Upper Breakout. params: {"period": 20, "std_dev": 2.0}
+- **atr**: Average True Range (volatility filter). params: {"period": 14}
+
+### Volume/Price Indicators
+- **volume_change**: Volume change rate (%)
+- **price_change**: Price change rate (%)
+- **vwap**: Price position relative to VWAP. "vwap_above" (price > VWAP) or "vwap_below"
+
+## Output JSON Schema
+
+```json
+{
+  "name": "Strategy name (English, max 10 words)",
+  "version": 1,
+  "entry": {
+    "conditions": [
+      {
+        "indicator": "indicator name (from list above)",
+        "operator": ">=, <=, >, <, ==",
+        "value": numeric_value,
+        "unit": "percent or absolute",
+        "params": {"period": 14, ...},
+        "description": "Condition description (English)"
+      }
+    ],
+    "logic": "AND or OR"
+  },
+  "exit": {
+    "take_profit": {
+      "type": "percent",
+      "value": take_profit_percent,
+      "partial": {
+        "enabled": true/false,
+        "at_percent": partial_sell_trigger_percent,
+        "sell_ratio": partial_sell_ratio (0-1)
+      }
+    },
+    "stop_loss": {
+      "type": "percent",
+      "value": stop_loss_percent (negative)
+    }
+  },
+  "position": {
+    "size_type": "fixed_usd or percent_portfolio",
+    "size_value": numeric_value,
+    "max_positions": max_simultaneous_positions
+  },
+  "filters": {
+    "min_liquidity_usd": min_liquidity,
+    "min_market_cap_usd": min_market_cap,
+    "exclude_tokens": [],
+    "token_whitelist": []
+  },
+  "timeframe": "1h, 4h, 1d etc",
+  "target_pair": "SOL/USDC etc"
+}
+```
+
+## Technical Analysis Framework
+
+### Trend Analysis
+- MA/EMA alignment for trend strength: 20 < 50 < 200 = strong uptrend
+- Golden Cross (short MA crosses above long MA) = buy, Death Cross = sell
+
+### Momentum Analysis
+- RSI below 30 = oversold (buy opportunity), RSI above 70 = overbought (sell opportunity)
+- MACD signal crossover = trend reversal point
+- Stochastic RSI = more sensitive overbought/oversold detection
+
+### Volatility Analysis
+- Bollinger Bands: lower touch = mean reversion buy, band squeeze = big move imminent
+- ATR: used as volatility filter (enter only when ATR is high)
+
+### Volume Confirmation
+- Volume surge + price rise = trend confirmation signal
+- Price movement without volume = low reliability
+
+## Rules
+1. Use reasonable defaults for fields not mentioned by user
+2. Stop loss always expressed as negative (e.g., -5)
+3. Take profit always expressed as positive (e.g., 8)
+4. Default target_pair: SOL/USDC
+5. Default timeframe: 1h
+6. **params field**: If user mentions periods/parameters, include in params. e.g., "RSI 20-day" → params: {"period": 20}
+7. **logic field**: "AND" if all conditions must be met, "OR" if any one suffices
+8. Output JSON only, no explanations
+
+## Image Analysis Guidelines
+When receiving a chart image:
+1. Recognize candlestick patterns (doji, hammer, engulfing, etc.)
+2. Identify visible technical indicators (moving averages, Bollinger Bands, RSI, etc.)
+3. Identify support/resistance levels
+4. Determine trend direction
+5. Generate entry/exit conditions based on recognized patterns
+6. Include recognized indicator parameters in params"""
+
+
+def get_strategy_system_prompt(language: str = "ko") -> str:
+    if language == "en":
+        return STRATEGY_SYSTEM_PROMPT_EN
+    return STRATEGY_SYSTEM_PROMPT
+
+
+def build_parse_prompt(user_input: str, language: str = "ko") -> str:
+    if language == "en":
+        return f"""Convert the following trading strategy to JSON:
+
+"{user_input}"
+
+Analyze the above strategy and output a structured strategy matching the JSON schema.
+```json"""
     return f"""다음 트레이딩 전략을 JSON으로 변환해주세요:
 
 "{user_input}"
