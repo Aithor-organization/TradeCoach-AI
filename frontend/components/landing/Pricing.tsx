@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useLanguageStore } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
 
+const WAITLIST_URL = "https://forms.gle/Lo65U3zg7M17PTPVA";
+
 export default function Pricing() {
   const { language } = useLanguageStore();
 
@@ -23,6 +25,8 @@ export default function Pricing() {
       cta: t("pricing.free.cta", language),
       variant: "secondary" as const,
       highlight: false,
+      href: "/chat",
+      external: false,
     },
     {
       name: "Premium",
@@ -39,6 +43,8 @@ export default function Pricing() {
       cta: t("pricing.premium.cta", language),
       variant: "primary" as const,
       highlight: true,
+      href: WAITLIST_URL,
+      external: true,
     },
     {
       name: "Web3 Native",
@@ -55,6 +61,8 @@ export default function Pricing() {
       cta: t("pricing.web3.cta", language),
       variant: "secondary" as const,
       highlight: false,
+      href: WAITLIST_URL,
+      external: true,
     },
   ];
 
@@ -70,11 +78,11 @@ export default function Pricing() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch">
           {plans.map((plan) => (
             <div
               key={plan.name}
-              className={`rounded-xl p-8 ${
+              className={`flex flex-col rounded-xl p-8 ${
                 plan.highlight
                   ? "bg-[#1E293B] border-2 border-[#22D3EE] relative"
                   : "bg-[#1E293B] border border-[#22D3EE15]"
@@ -96,20 +104,28 @@ export default function Pricing() {
                 <span className="text-sm text-[#475569]">{plan.period}</span>
               </div>
 
-              <ul className="space-y-3 mb-8">
+              <ul className="space-y-3 mb-8 flex-1">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-center gap-2 text-sm text-[#94A3B8]">
-                    <span className="text-[#22D3EE]">✓</span>
+                    <span className="text-[#22D3EE] flex-shrink-0">✓</span>
                     {feature}
                   </li>
                 ))}
               </ul>
 
-              <Link href="/chat" className="block">
-                <Button variant={plan.variant} className="w-full">
-                  {plan.cta}
-                </Button>
-              </Link>
+              {plan.external ? (
+                <a href={plan.href} target="_blank" rel="noopener noreferrer" className="block mt-auto">
+                  <Button variant={plan.variant} className="w-full">
+                    {plan.cta}
+                  </Button>
+                </a>
+              ) : (
+                <Link href={plan.href} className="block mt-auto">
+                  <Button variant={plan.variant} className="w-full">
+                    {plan.cta}
+                  </Button>
+                </Link>
+              )}
             </div>
           ))}
         </div>
