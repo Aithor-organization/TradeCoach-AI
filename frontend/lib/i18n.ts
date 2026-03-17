@@ -299,6 +299,17 @@ const translations = {
 
     // StrategyCard 추가
     "sc.half": "(절반)",
+
+    // 가입 모달
+    "auth.title": "시작하기",
+    "auth.subtitle": "이름과 이메일을 입력하면 바로 시작할 수 있습니다.",
+    "auth.name": "이름",
+    "auth.namePlaceholder": "홍길동",
+    "auth.email": "이메일",
+    "auth.emailPlaceholder": "example@email.com",
+    "auth.submit": "시작하기",
+    "auth.submitting": "가입 중...",
+    "auth.error": "가입에 실패했습니다. 다시 시도해주세요.",
   },
   en: {
     // 채팅 페이지
@@ -598,6 +609,17 @@ const translations = {
 
     // StrategyCard 추가
     "sc.half": "(half)",
+
+    // 가입 모달
+    "auth.title": "Get Started",
+    "auth.subtitle": "Enter your name and email to start using TradeCoach AI.",
+    "auth.name": "Name",
+    "auth.namePlaceholder": "John Doe",
+    "auth.email": "Email",
+    "auth.emailPlaceholder": "example@email.com",
+    "auth.submit": "Get Started",
+    "auth.submitting": "Signing up...",
+    "auth.error": "Registration failed. Please try again.",
   },
 } as const;
 

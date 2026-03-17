@@ -248,3 +248,10 @@ export async function verifyWallet(walletAddress: string, signature: string, non
     }),
   });
 }
+
+export async function registerWithEmail(name: string, email: string) {
+  return fetcher<{ access_token: string; user_id: string; name: string; email: string }>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ name, email }),
+  });
+}

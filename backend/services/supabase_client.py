@@ -115,6 +115,32 @@ async def get_or_create_user(wallet_address: str) -> Optional[dict]:
         return None
 
 
+async def get_or_create_user_by_email(email: str, name: str) -> Optional[dict]:
+    """이메일로 사용자 조회 또는 생성 (MVP 간편 가입)"""
+    if not _is_available():
+        import uuid
+        from datetime import datetime, timezone
+        return {"id": str(uuid.uuid4()), "wallet_address": email, "display_name": name, "tier": "free", "created_at": datetime.now(timezone.utc).isoformat()}
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        # 이메일로 기존 사용자 조회 (wallet_address 필드를 이메일로 활용)
+        res = await client.get(
+            _rest_url("users"),
+            headers=_headers(),
+            params={"wallet_address": f"eq.{email}", "select": "*"},
+        )
+        if res.status_code == 200 and res.json():
+            return res.json()[0]
+        # 신규 생성
+        res = await client.post(
+            _rest_url("users"),
+            headers=_headers(),
+            json={"wallet_address": email, "display_name": name, "tier": "free"},
+        )
+        if res.status_code in (200, 201) and res.json():
+            return res.json()[0]
+        return None
+
+
 async def get_strategies(user_id: Optional[str] = None) -> list:
     if not _is_available():
         return get_example_strategies()

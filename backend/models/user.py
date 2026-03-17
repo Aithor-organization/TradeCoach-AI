@@ -31,3 +31,16 @@ class AuthResponse(BaseModel):
 
 class NonceResponse(BaseModel):
     nonce: str
+
+
+class EmailRegisterRequest(BaseModel):
+    name: str
+    email: str
+
+
+class EmailAuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: str
+    name: str
+    email: str

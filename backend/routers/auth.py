@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from models.user import WalletAuthRequest, WalletVerifyRequest, NonceResponse, AuthResponse, UserResponse
+from models.user import WalletAuthRequest, WalletVerifyRequest, NonceResponse, AuthResponse, UserResponse, EmailRegisterRequest, EmailAuthResponse
 from config import get_settings
 from dependencies import require_auth
 from slowapi import Limiter
@@ -121,3 +121,39 @@ async def get_current_user(user_id: str = Depends(require_auth)):
     except Exception as e:
         logger.error(f"사용자 조회 실패 (user_id={user_id}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="사용자 정보 조회 중 오류가 발생했습니다.")
+
+
+@router.post("/register", response_model=EmailAuthResponse)
+@limiter.limit("5/minute")
+async def register_with_email(request: Request, body: EmailRegisterRequest):
+    """이름 + 이메일로 간단 가입 (MVP)"""
+    from services.supabase_client import get_or_create_user_by_email
+
+    if not body.email or not body.name:
+        raise HTTPException(status_code=400, detail="Name and email are required")
+
+    try:
+        user = await get_or_create_user_by_email(body.email, body.name)
+        if not user:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
+        token_data = {
+            "sub": user["id"],
+            "email": body.email,
+            "name": body.name,
+            "exp": expire,
+        }
+        access_token = jwt.encode(token_data, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+        return EmailAuthResponse(
+            access_token=access_token,
+            user_id=user["id"],
+            name=user.get("display_name", body.name),
+            email=body.email,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"이메일 가입 실패 (email={body.email}): {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Registration failed")
