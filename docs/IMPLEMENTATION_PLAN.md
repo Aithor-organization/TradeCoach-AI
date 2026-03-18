@@ -257,6 +257,76 @@ CREATE TABLE demo_trades (
 
 ---
 
+## Phase 5: 블록체인 통합 (7일)
+
+### 목표
+전략과 거래 신호를 블록체인에 기록하여 무결성 보장. 전략은 등록/삭제만 가능 (수정 불가).
+
+### 5.1 전략 온체인 등록 (`backend/services/blockchain.py` 신규)
+- [ ] Solana Program (스마트 컨트랙트) 설계
+  - 전략 등록: JSON 해시 + 메타데이터 → 온체인 저장
+  - 전략 삭제: 소유자만 삭제 가능 (등록자 검증)
+  - **수정 불가**: 등록 후 변경 차단 (immutable)
+- [ ] 전략 등록 시 JSON 전체를 IPFS/Arweave에 저장, 해시만 온체인
+- [ ] 등록된 전략 조회 API
+- [ ] 프론트엔드 "Register on Chain" 버튼
+
+### 5.2 거래 신호 트랜잭션 기록
+- [ ] 매매 신호 발생 시 자동으로 Solana 트랜잭션 생성
+  - 신호 타입 (Long/Short/Close)
+  - 타임스탬프
+  - 전략 ID (온체인 참조)
+  - 진입/청산 가격
+- [ ] 신호 히스토리 온체인 조회
+- [ ] 트랜잭션 비용 최소화 (배치 처리 또는 압축)
+
+### 5.3 무결성 검증
+- [ ] 전략 변경 감지: DB 전략 vs 온체인 해시 비교
+- [ ] 거래 내역 감사 추적: 온체인 기록 vs 로컬 DB 일치 확인
+- [ ] 프론트엔드 "Verified" 배지 (온체인 등록 전략)
+
+### 5.4 API 엔드포인트
+- [ ] `POST /blockchain/strategy/register` — 전략 온체인 등록
+- [ ] `DELETE /blockchain/strategy/{id}` — 전략 온체인 삭제
+- [ ] `GET /blockchain/strategy/{id}/verify` — 무결성 검증
+- [ ] `POST /blockchain/signal` — 거래 신호 트랜잭션 기록
+- [ ] `GET /blockchain/signal/history/{strategy_id}` — 신호 히스토리 조회
+
+### 5.5 기술 선택지
+
+| 방식 | 장점 | 단점 |
+|------|------|------|
+| **Solana Program** | 기존 Phantom 연동 활용 | 개발 복잡도 높음 |
+| **Anchor Framework** | Solana 개발 간소화 | Rust 필요 |
+| **IPFS + Solana 해시** | 저비용, 대용량 데이터 | 2단계 조회 |
+| **Arweave** | 영구 저장 | 별도 비용 |
+
+### 5.6 DB 스키마 추가
+
+```sql
+-- 온체인 전략 등록 기록
+CREATE TABLE onchain_strategies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  strategy_id UUID REFERENCES strategies(id),
+  tx_signature VARCHAR(88) NOT NULL,
+  onchain_hash VARCHAR(64) NOT NULL,
+  ipfs_cid TEXT,
+  registered_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 온체인 거래 신호
+CREATE TABLE onchain_signals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  strategy_id UUID REFERENCES strategies(id),
+  signal_type TEXT NOT NULL, -- 'long_entry' | 'short_entry' | 'close'
+  price DECIMAL,
+  tx_signature VARCHAR(88) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+---
+
 ## 일정 요약
 
 | Phase | 내용 | 기간 | 의존성 |
@@ -265,7 +335,8 @@ CREATE TABLE demo_trades (
 | **Phase 2** | 최적화 + Walk-Forward | 5일 | Phase 1 |
 | **Phase 3** | 실시간 + 모의투자 | 7일 | Phase 1 |
 | **Phase 4** | Rust 고속 브릿지 (선택) | 5일 | Phase 2 |
-| **총 예상** | Phase 1~3 필수 | **~17일** | |
+| **Phase 5** | 블록체인 통합 | 7일 | Phase 3 |
+| **총 예상** | Phase 1~3 + 5 필수 | **~24일** | |
 
 ---
 
