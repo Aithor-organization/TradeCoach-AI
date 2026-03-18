@@ -676,5 +676,142 @@ frontend/
 | Phase 1 | 5개 | 0개 | 5개 |
 | Phase 2 | 1개 | 4개 | 5개 |
 | Phase 3 | 2개 | 7개 (+1 page) | 10개 |
-| Phase 5 | 2개 | 4개 | 6개 |
-| **합계** | **10개** | **15개** | **26개** |
+| Phase 5 | 2개 | 4개 + 마켓플레이스 5개 | 11개 |
+| **합계** | **10개** | **20개** | **31개** |
+
+---
+
+## 전체 페이지 맵
+
+### 통합 후 최종 페이지 구조 (7개)
+
+```
+/                     ← 랜딩 (변경 없음)
+/chat                 ← AI 채팅 (Phase 1: 선물 UI 확장)
+/strategies           ← 전략 목록 (변경 없음)
+/strategies/[id]      ← 전략 상세 (Phase 1+2+5: 확장 메트릭, 최적화, NFT)
+/trading              ← 모의투자 대시보드 (Phase 3: 신규)
+/marketplace          ← 전략 마켓플레이스 (Phase 5: 신규)
+/marketplace/[id]     ← 마켓플레이스 전략 상세 (Phase 5: 신규)
+```
+
+### 마켓플레이스 페이지 (Phase 5 확장)
+
+#### `/marketplace` — 공개 전략 목록
+
+```
+┌──────────────────────────────────────────────────┐
+│ Strategy Marketplace              [Filter ▼] [Sort ▼]│
+├──────────────────────────────────────────────────┤
+│ ┌────────────┐ ┌────────────┐ ┌────────────┐     │
+│ │ DDIF v3    │ │ RSI Bounce │ │ EMA Cross  │     │
+│ │ BTCUSDT    │ │ ETHUSDT    │ │ SOLUSDT    │     │
+│ │ Verified ✅│ │ Verified ✅│ │ Pending ⏳ │     │
+│ │ +47% / 3mo │ │ +28% / 2mo │ │ +12% / 1mo │     │
+│ │ MDD -12%   │ │ MDD -8%    │ │ MDD -15%   │     │
+│ │ 147 signals│ │ 89 signals │ │ 34 signals │     │
+│ │ by @kim    │ │ by @park   │ │ by @lee    │     │
+│ └────────────┘ └────────────┘ └────────────┘     │
+└──────────────────────────────────────────────────┘
+```
+
+#### `/marketplace/[id]` — 전략 상세 (성과만 공개, 내용 비공개)
+
+```
+┌──────────────────────────────────────────────────┐
+│ DDIF Strategy v3                    Verified ✅    │
+│ BTCUSDT · 15m/3m · by @trader_kim                 │
+│                                                    │
+│ Verified Performance (on-chain proof)              │
+│ ├── Return: +47.2%  │  MDD: -12.3%               │
+│ ├── Sharpe: 2.1     │  Win Rate: 62%             │
+│ └── Signals: 147 recorded on Solana               │
+│                                                    │
+│ Signal Timeline (verified, not editable)           │
+│ ├── 03/15 14:30  LONG   ████ +2.3%               │
+│ ├── 03/16 09:15  SHORT  ██   -0.5%               │
+│ └── 03/17 11:00  LONG   ██████ +4.1%             │
+│                                                    │
+│ Strategy Details: 🔒 Hidden                        │
+│ (Content hash verified on Solana. Only the owner  │
+│  can reveal strategy parameters.)                  │
+│                                                    │
+│ [Import Performance Summary]  [Subscribe $9.99/mo] │
+└──────────────────────────────────────────────────┘
+```
+
+#### 마켓플레이스 신규 컴포넌트
+
+| 컴포넌트 | 위치 | 설명 |
+|---------|------|------|
+| `MarketplaceGrid.tsx` | `components/marketplace/` | 공개 전략 카드 그리드 + 필터/정렬 |
+| `MarketplaceCard.tsx` | `components/marketplace/` | 개별 전략 카드 (수익률, 배지, 신호 수) |
+| `VerifiedPerformance.tsx` | `components/marketplace/` | 온체인 검증 성과 표시 |
+| `SignalTimeline.tsx` | `components/marketplace/` | 매매 신호 타임라인 차트 |
+| `PrivacyBadge.tsx` | `components/marketplace/` | "🔒 Hidden" / "🔓 Public" 전략 공개 상태 |
+
+---
+
+## 전략 프라이버시 모델
+
+### 해시 기반 공개/비공개 설계
+
+| 항목 | 온체인 (공개) | 오프체인 (비공개) |
+|------|------------|----------------|
+| 전략 해시 (SHA256) | ✅ | - |
+| 전략 이름/심볼 | ✅ (메타데이터) | - |
+| **진입 조건 (RSI, MACD 등)** | **해시만** | **소유자만 보유** |
+| **파라미터 (period, threshold)** | **해시만** | **소유자만 보유** |
+| **TP/SL/레버리지** | **해시만** | **소유자만 보유** |
+| 신호 타입 (Long/Short/Close) | ✅ | - |
+| 신호 시간 | ✅ | - |
+| 신호 가격 | 해시만 (선택) | 소유자 선택 |
+
+### 공개 수준 옵션 (소유자가 선택)
+
+```
+Level 1: 기본 (최소 공개)
+  → 이름, 심볼, 검증 수익률, 신호 수만
+
+Level 2: 신호 공개
+  → Level 1 + 신호 시간/타입/가격 공개
+
+Level 3: 전략 공개 (향후)
+  → Level 2 + 전략 원본 JSON 공개 (Arweave URI 공유)
+```
+
+---
+
+## AI 프롬프트 통합 계획
+
+### Phase별 프롬프트 변경
+
+| Phase | 변경 파일 | 추가 내용 |
+|-------|---------|----------|
+| **1** | `coaching.py` | 선물 리스크 프레임워크 (레버리지 경고, 강제청산 교육) |
+| **1** | `backtest_report.py` | 확장 메트릭 해석 기준 (CAGR, Profit Factor, Calmar) |
+| **1** | `strategy_parser.py` | 선물 전용 필드 파싱 (leverage, direction, partial_exit) |
+| **2** | `coaching.py` | 최적화/Walk-Forward 결과 해석 컨텍스트 |
+| **3** | `coaching.py` | 모의투자 실시간 성과 분석 컨텍스트 |
+| **5** | `coaching.py` | 온체인 검증 상태 표시 |
+
+### 컨텍스트 주입 방식
+- **직접 주입** (RAG 아님): 총 ~7,300 토큰 (Gemini 한도 100만 대비 0.73%)
+- Phase 1~5 추가분: ~800 토큰 추가
+- 기존 RAG: 트레이딩 지식 30개 문서 (키워드 매칭 검색, 유지)
+
+---
+
+## RAG 지식 베이스 확장 계획
+
+### Phase 1에서 추가할 트레이딩 지식 문서
+
+| 원본 (RCoinFutTrader) | → RAG 문서 | 카테고리 |
+|---------------------|----------|---------|
+| `strategy/logic.rs` DDIF 로직 | "DDIF 전략: 멀티타임프레임 ADX/DI 기반 매매" | strategy |
+| `backtester/metrics.rs` | "Calmar Ratio, Profit Factor 해석 기준" | backtest |
+| `config.toml` 리스크 설정 | "선물 리스크 관리: 분할익절, 추적손절 실전 가이드" | risk |
+| Walk-Forward 로직 | "인샘플/아웃오브샘플 최적화 실전 가이드" | optimization |
+| 레버리지 관리 | "선물 레버리지 위험: 강제청산 메커니즘 이해" | risk |
+
+→ `backend/data/trading_knowledge.json`에 5개 문서 추가 (30개 → 35개)
