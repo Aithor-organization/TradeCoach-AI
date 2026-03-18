@@ -1,100 +1,144 @@
-# TradeCoach-AI + RCoinFutTrader 통합 구현계획서
+# TradeCoach-AI + RCoinFutTrader 통합 구현계획서 v2
 
 > **작성일**: 2026-03-18
-> **목표**: RCoinFutTrader(Rust 자동매매)의 핵심 기능을 TradeCoach-AI(웹앱)에 통합
+> **핵심 변경**: RCoinFutTrader(선물 자동매매)를 기반 엔진으로 채택. 현물 → 선물 전환.
 
 ---
 
-## 현재 상태
+## 설계 원칙
 
-### TradeCoach-AI (웹앱)
-- **프론트엔드**: Next.js 16 + React + Tailwind
-- **백엔드**: Python FastAPI + Gemini AI
-- **백테스트**: vectorbt 기반 단일 엔진
-- **데이터**: Binance Klines REST (최대 41.6일)
-- **기능**: 전략 파싱, AI 코칭, 백테스트, i18n(한/영)
+**RCoinFutTrader가 엔진, TradeCoach-AI가 UI**
 
-### RCoinFutTrader (Rust)
-- **코드량**: 18,665줄 Rust
-- **핵심**: DDIF 전략, 4개 백테스트 엔진, Walk-Forward v2~v10, Grid/Genetic 최적화
-- **데이터**: WebSocket 실시간 + CSV 2년치
-- **실거래**: Binance Futures REST API 주문
+```
+TradeCoach-AI (웹 UI)          RCoinFutTrader (엔진)
+┌─────────────────┐           ┌──────────────────────┐
+│ Next.js 프론트엔드 │ ← API → │ Python 백엔드          │
+│ AI 채팅/코칭     │           │   ↕ Rust 백테스트 브릿지 │
+│ 전략 빌더        │           │   ↕ Binance Futures API│
+│ 결과 시각화      │           │   ↕ WebSocket 실시간    │
+└─────────────────┘           └──────────────────────┘
+```
 
 ---
 
-## Phase 1: 백엔드 지표/메트릭 확장 (3일)
+## 현재 vs 통합 후
+
+| 항목 | 현재 (Spot) | 통합 후 (Futures) |
+|------|------------|------------------|
+| **시장** | 현물 | **USDT-M 선물** |
+| **포지션** | 매수만 | **Long + Short** |
+| **레버리지** | 1x 고정 | **1x~125x 설정 가능** |
+| **수수료** | 0.3% | **0.04% (Futures)** |
+| **데이터** | Binance Spot Klines 41일 | **Futures Klines + CSV 2년치** |
+| **리스크** | TP/SL만 | **TP/SL + 분할익절 + 추적손절 + 강제청산** |
+| **백테스트 엔진** | Python vectorbt 1개 | **Python 정밀엔진 + Rust 고속엔진** |
+| **최적화** | 없음 | **Grid/Genetic + Walk-Forward** |
+| **모의투자** | 없음 | **호가 기반 시뮬레이션** |
+| **전략** | 범용 지표 | **DDIF + 범용 지표 + 멀티타임프레임** |
+
+---
+
+## Phase 1: 선물 백테스트 엔진 전환 (5일)
 
 ### 목표
-RCoinFutTrader의 증분형 지표와 성능 메트릭을 Python으로 포팅
+기존 현물 백테스트를 선물(Futures) 기반으로 완전 교체
 
-### 작업 목록
+### 1.1 데이터 소스 전환
+- [ ] Binance Futures Klines API 엔드포인트 변경 (`/fapi/v1/klines`)
+- [ ] 과거 데이터 다운로드 스크립트 포팅 (`scripts/download_data.sh` → Python)
+- [ ] CSV 캐싱 (2년치 데이터 로컬 저장, 이후 증분 업데이트)
+- **포팅 원본**: `src/backtester/data.rs` (550줄)
 
-#### 1.1 지표 확장 (`backend/services/indicators.py` 신규)
-- [ ] ADX (Average Directional Index) — 참조: `RCoinFutTrader/src/backtester/indicators.rs`
-- [ ] DI+/DI- (Directional Indicator)
+### 1.2 선물 백테스트 엔진 (`backend/services/futures_engine.py` 신규)
+- [ ] Long/Short 양방향 포지션 지원
+- [ ] 레버리지 설정 (1x~125x)
+- [ ] 수수료 0.04% (maker/taker 구분)
+- [ ] 분할 익절 (Partial Exit): 1차 목표에서 50% 청산
+- [ ] 추적 손절 (Trailing Stop): 최고점 대비 콜백 비율
+- [ ] 강제 청산 (Liquidation) 가격 계산
+- [ ] 슬리피지 모델 (1~2틱)
+- **포팅 원본**: `src/backtester/realistic_engine.rs` (1,002줄), `src/app/mod.rs` (343줄)
+
+### 1.3 지표 확장 (`backend/services/indicators.py` 신규)
+- [ ] ADX (Average Directional Index) — 추세 강도
+- [ ] DI+/DI- (Directional Indicator) — 추세 방향
+- [ ] DDIF/MADDIF — RCoinFutTrader 핵심 전략 지표
 - [ ] Stochastic RSI (K/D 라인)
 - [ ] ATR (Average True Range)
-- [ ] VWAP (Volume Weighted Average Price)
-- [ ] EMA cross (short/long)
+- [ ] EMA cross (short/long period)
+- [ ] 증분형 계산 (전체 재계산 없이 새 봉만 업데이트)
 - **포팅 원본**: `src/backtester/indicators.rs` (799줄), `src/strategy/indicators.rs` (334줄)
 
-#### 1.2 메트릭 확장 (`backend/services/metrics.py` 신규)
+### 1.4 성능 메트릭 확장 (`backend/services/metrics.py` 신규)
 - [ ] CAGR (연평균 복합 수익률)
 - [ ] Profit Factor (총이익/총손실)
 - [ ] Calmar Ratio (CAGR/MDD)
 - [ ] Average Win/Loss 비율
 - [ ] Maximum Consecutive Losses
+- [ ] Long/Short 별도 통계
 - **포팅 원본**: `src/backtester/metrics.rs` (487줄)
 
-#### 1.3 현실적 시뮬레이션 개선 (`backend/services/backtest_engine.py` 수정)
-- [ ] 슬리피지 모델 추가 (1~2틱 기본)
-- [ ] 수수료 정밀화 (maker/taker 구분, 기본 0.04%)
-- [ ] 분할 익절 (Partial Exit) 로직
-- [ ] 추적 손절 (Trailing Stop) 로직
-- **포팅 원본**: `src/app/mod.rs` (343줄) DemoEngine의 리스크 관리 로직
+### 1.5 전략 JSON 스키마 확장
+기존 전략 JSON에 선물 전용 필드 추가:
+```json
+{
+  "market_type": "futures",
+  "leverage": 10,
+  "direction": "both",
+  "risk": {
+    "stop_loss": -0.4,
+    "take_profit": 1.5,
+    "partial_exit": { "enabled": true, "at_pct": 1.2, "ratio": 0.5 },
+    "trailing_stop": { "enabled": true, "trigger_pct": 0.9, "callback_pct": 0.2 }
+  },
+  "filter_interval": 15,
+  "trade_interval": 3
+}
+```
 
-### API 변경
-- `POST /backtest/run` 응답에 확장 메트릭 추가 (기존 호환 유지)
-- 프론트엔드 `BacktestResult` 타입에 새 메트릭 필드 추가 (optional)
+### 1.6 API 변경
+- `POST /backtest/run` — `market_type: "futures"` 기본값 변경
+- 응답에 확장 메트릭 + Long/Short 별도 통계 추가
+- 프론트엔드 BacktestResult 컴포넌트에 레버리지/방향 표시
+
+### 1.7 AI 프롬프트 업데이트
+- 코칭 프롬프트에 선물 리스크 관리 프레임워크 추가 (레버리지 위험, 강제청산 교육)
+- 전략 파서에 선물 전용 필드 인식 추가
 
 ---
 
-## Phase 2: 파라미터 최적화 엔진 (5일)
+## Phase 2: 파라미터 최적화 + Walk-Forward (5일)
 
-### 목표
-사용자 전략의 최적 파라미터를 자동 탐색하는 기능 추가
-
-### 작업 목록
-
-#### 2.1 Grid Search 최적화 (`backend/services/optimizer.py` 신규)
-- [ ] 파라미터 범위 정의 (JSON 스키마)
-- [ ] Grid 조합 생성 + 병렬 백테스트 실행
-- [ ] 목적 함수: Sharpe Ratio, Total Return, MDD 기반 복합 점수
+### 2.1 Grid Search 최적화 (`backend/services/optimizer.py` 신규)
+- [ ] 파라미터 범위 정의 (레버리지, TP/SL, 지표 파라미터)
+- [ ] 선물 백테스트 엔진으로 병렬 실행 (multiprocessing)
+- [ ] 목적 함수: Sharpe, Calmar, Profit Factor 기반 복합 점수
 - [ ] 상위 N개 결과 반환
 - **포팅 원본**: `src/backtester/optimizer.rs` (601줄)
 
-#### 2.2 Walk-Forward 분석 (`backend/services/walk_forward.py` 신규)
+### 2.2 Walk-Forward 전진분석 (`backend/services/walk_forward.py` 신규)
 - [ ] 데이터 기간 분할: In-Sample (훈련) / Out-of-Sample (검증)
 - [ ] Rolling Window 방식 (Anchored + Sliding)
-- [ ] OOS 성과 집계 → 과적합 판정
+- [ ] OOS 성과 집계 → 과적합 판정 (IS 대비 50% 이상이면 유효)
 - [ ] 최적 파라미터 → 최종 추천
-- **포팅 원본**: `src/backtester/ddif_optimizer.rs` (1,161줄) Walk-Forward 로직
+- **포팅 원본**: `src/backtester/ddif_optimizer.rs` (1,161줄)
 
-#### 2.3 API 엔드포인트
-- [ ] `POST /backtest/optimize` — Grid Search 실행
+### 2.3 API 엔드포인트
+- [ ] `POST /backtest/optimize`
   ```json
   {
     "strategy_id": "...",
     "param_ranges": {
-      "rsi_period": [10, 14, 20],
-      "take_profit": [5, 8, 10, 15],
-      "stop_loss": [-3, -5, -8]
+      "leverage": [5, 10, 20],
+      "take_profit": [1.0, 1.5, 2.0],
+      "stop_loss": [-0.3, -0.4, -0.5],
+      "rsi_period": [10, 14, 20]
     },
     "objective": "sharpe",
     "max_combinations": 100
   }
   ```
-- [ ] `POST /backtest/walk-forward` — Walk-Forward 분석 실행
+- [ ] `POST /backtest/walk-forward`
   ```json
   {
     "strategy_id": "...",
@@ -104,85 +148,75 @@ RCoinFutTrader의 증분형 지표와 성능 메트릭을 Python으로 포팅
   }
   ```
 
-#### 2.4 프론트엔드 UI
-- [ ] 전략 상세 페이지에 "최적화" 버튼 추가
-- [ ] 최적화 결과 테이블 (상위 10개 파라미터 조합)
-- [ ] Walk-Forward 결과 차트 (In/Out 수익률 비교)
+### 2.4 프론트엔드 UI
+- [ ] 전략 상세 페이지에 "Optimize" 버튼
+- [ ] 최적화 결과 테이블 (상위 10개 파라미터 조합 + 메트릭)
+- [ ] "Walk-Forward" 버튼 → IS/OOS 비교 차트
+- [ ] 과적합 판정 배지 (Pass/Fail)
 
 ---
 
-## Phase 3: 실시간 데이터 & 모의투자 (7일)
+## Phase 3: 실시간 데이터 + 모의투자 (7일)
 
-### 목표
-실시간 가격 스트리밍 + 전략 기반 모의투자 모드
-
-### 작업 목록
-
-#### 3.1 WebSocket 가격 스트리밍 (`backend/services/binance_ws.py` 신규)
-- [ ] Binance aggTrade WebSocket 연결
+### 3.1 WebSocket 가격 스트리밍 (`backend/services/binance_ws.py` 신규)
+- [ ] Binance Futures aggTrade WebSocket 연결
 - [ ] N분봉 BarAggregator (틱 → OHLCV 변환)
+- [ ] 15분봉 (필터) + 3분봉 (트레이드) 멀티타임프레임
 - [ ] FastAPI WebSocket 엔드포인트 (`/ws/price/{symbol}`)
-- [ ] 프론트엔드 실시간 차트 컴포넌트
-- **포팅 원본**: `src/marketdata/ws.rs` (실시간 스트림), `src/marketdata/bars.rs` (바 집계)
+- **포팅 원본**: `src/marketdata/ws.rs`, `src/marketdata/bars.rs`
 
-#### 3.2 모의투자 엔진 (`backend/services/demo_trading.py` 신규)
+### 3.2 모의투자 엔진 (`backend/services/demo_trading.py` 신규)
 - [ ] 가상 포지션 관리 (Long/Short/반전)
-- [ ] 가상 잔고 추적
+- [ ] 레버리지 반영 잔고 계산
 - [ ] 주문 타입: Market, Limit
-- [ ] SL/TP/Trailing Stop 자동 관리
+- [ ] SL/TP/분할익절/추적손절 자동 관리
+- [ ] 강제 청산 시뮬레이션
 - [ ] 거래 내역 Supabase 저장
 - **포팅 원본**: `src/app/mod.rs` (DemoEngine), `src/app/runner.rs` (DemoRunner)
 
-#### 3.3 API 엔드포인트
-- [ ] `POST /trading/demo/start` — 모의투자 세션 시작
-- [ ] `POST /trading/demo/stop` — 모의투자 세션 종료
-- [ ] `GET /trading/demo/status` — 현재 포지션/잔고 조회
-- [ ] `GET /trading/demo/history` — 거래 내역 조회
+### 3.3 DDIF 전략 엔진 (`backend/services/ddif_strategy.py` 신규)
+- [ ] 15분봉 필터: MADDIF1 > threshold → 매수/매도 준비 상태
+- [ ] 3분봉 진입: 준비 상태에서 MADDIF 크로스오버 → Long/Short 진입
+- [ ] 15분봉 반전 신호 → 포지션 청산
+- **포팅 원본**: `src/strategy/logic.rs` (492줄)
 
-#### 3.4 프론트엔드 UI
-- [ ] 모의투자 대시보드 페이지 (`/trading`)
-- [ ] 실시간 포지션 카드 (수익률, PnL)
+### 3.4 API 엔드포인트
+- [ ] `POST /trading/demo/start` — 모의투자 세션 시작 (전략+심볼+레버리지)
+- [ ] `POST /trading/demo/stop` — 모의투자 세션 종료
+- [ ] `GET /trading/demo/status` — 현재 포지션/잔고/PnL
+- [ ] `GET /trading/demo/history` — 거래 내역
+
+### 3.5 프론트엔드 (`/trading` 신규 페이지)
 - [ ] 실시간 가격 차트 (lightweight-charts WebSocket 연동)
+- [ ] 포지션 카드 (Long/Short, 레버리지, 미실현 PnL)
+- [ ] 잔고/마진 표시
 - [ ] 거래 히스토리 테이블
+- [ ] 시작/중지 버튼
 
 ---
 
 ## Phase 4: Rust 고속 백테스트 브릿지 (선택, 5일)
 
-### 목표
-대량 최적화 시 Rust 바이너리 직접 활용으로 10~100배 속도 향상
-
-### 작업 목록
-
-#### 4.1 Rust HTTP 브릿지 (`RCoinFutTrader/src/bin/api_server.rs` 신규)
-- [ ] Axum/Actix 경량 HTTP 서버
-- [ ] `POST /backtest` — JSON 전략 입력 → 백테스트 결과 JSON 출력
-- [ ] `POST /optimize` — 파라미터 범위 → 최적화 결과
+### 4.1 Rust HTTP API (`RCoinFutTrader/src/bin/api_server.rs` 신규)
+- [ ] Axum 경량 HTTP 서버
+- [ ] `POST /backtest` — JSON 전략 → 백테스트 결과
+- [ ] `POST /optimize` — 파라미터 범위 → Grid/Genetic 최적화
+- [ ] `POST /walk-forward` — Walk-Forward 전진분석
 - [ ] Docker 컨테이너화
 
-#### 4.2 Python 클라이언트 (`backend/services/rust_bridge.py` 신규)
-- [ ] HTTP 클라이언트 (httpx async)
+### 4.2 Python 클라이언트 (`backend/services/rust_bridge.py` 신규)
+- [ ] httpx async 클라이언트
 - [ ] 폴백: Rust 서버 불가 시 Python 엔진 사용
-- [ ] 결과 포맷 변환 (Rust JSON → Python dict)
-
----
-
-## 데이터 확장 계획
-
-| 현재 | 목표 | 방법 |
-|------|------|------|
-| Binance REST 41.6일 | 최대 2년 | `scripts/download_data.sh` 포팅, CSV 캐싱 |
-| SOL/USDC only | 멀티 심볼 | 프론트엔드 심볼 선택 UI |
-| 1h/4h/1d | 1m/3m/5m/15m/1h/4h/1d | 다중 타임프레임 지원 |
+- [ ] 결과 포맷 변환
 
 ---
 
 ## DB 스키마 확장
 
 ```sql
--- 최적화 결과 테이블
+-- 최적화 결과
 CREATE TABLE optimization_results (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   strategy_id UUID REFERENCES strategies(id),
   method TEXT, -- 'grid' | 'genetic' | 'walk_forward'
   params JSONB,
@@ -191,27 +225,31 @@ CREATE TABLE optimization_results (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 모의투자 세션 테이블
+-- 모의투자 세션
 CREATE TABLE demo_sessions (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID,
   strategy_id UUID,
-  status TEXT, -- 'active' | 'stopped'
-  initial_balance DECIMAL,
-  current_balance DECIMAL,
+  symbol VARCHAR(20) DEFAULT 'BTCUSDT',
+  leverage INTEGER DEFAULT 10,
+  status TEXT DEFAULT 'active',
+  initial_balance DECIMAL DEFAULT 1000,
+  current_balance DECIMAL DEFAULT 1000,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   stopped_at TIMESTAMPTZ
 );
 
 -- 모의투자 거래 내역
 CREATE TABLE demo_trades (
-  id UUID PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID REFERENCES demo_sessions(id),
   side TEXT, -- 'long' | 'short'
   entry_price DECIMAL,
   exit_price DECIMAL,
   quantity DECIMAL,
+  leverage INTEGER,
   pnl DECIMAL,
+  exit_reason TEXT, -- 'tp' | 'sl' | 'trailing' | 'liquidation' | 'signal'
   entry_at TIMESTAMPTZ,
   exit_at TIMESTAMPTZ
 );
@@ -223,35 +261,25 @@ CREATE TABLE demo_trades (
 
 | Phase | 내용 | 기간 | 의존성 |
 |-------|------|------|--------|
-| **Phase 1** | 지표/메트릭/시뮬레이션 확장 | 3일 | 없음 (독립) |
-| **Phase 2** | 파라미터 최적화 + Walk-Forward | 5일 | Phase 1 |
-| **Phase 3** | 실시간 데이터 + 모의투자 | 7일 | Phase 1 |
+| **Phase 1** | 선물 백테스트 엔진 전환 | 5일 | 없음 |
+| **Phase 2** | 최적화 + Walk-Forward | 5일 | Phase 1 |
+| **Phase 3** | 실시간 + 모의투자 | 7일 | Phase 1 |
 | **Phase 4** | Rust 고속 브릿지 (선택) | 5일 | Phase 2 |
-| **총 예상** | Phase 1~3 필수 | **~15일** | |
-
----
-
-## 기술 결정 사항
-
-| 결정 | 선택 | 이유 |
-|------|------|------|
-| 지표 구현 | Python (ta-lib/pandas) | 유지보수 용이, Rust FFI 복잡도 회피 |
-| 최적화 | Python (multiprocessing) | 기존 백엔드와 통합 용이 |
-| 실시간 WS | Python (websockets) | FastAPI WebSocket 네이티브 지원 |
-| 모의투자 | Python + Supabase | 기존 인프라 활용 |
-| Rust 브릿지 | HTTP API (선택) | 속도 필요 시에만 도입, 독립 배포 |
+| **총 예상** | Phase 1~3 필수 | **~17일** | |
 
 ---
 
 ## 참조 파일 매핑 (RCoinFutTrader → TradeCoach-AI)
 
-| RCoinFutTrader 원본 | 포팅 대상 | 줄 수 |
-|---------------------|----------|-------|
-| `src/backtester/indicators.rs` | `backend/services/indicators.py` | 799 |
-| `src/backtester/metrics.rs` | `backend/services/metrics.py` | 487 |
-| `src/backtester/optimizer.rs` | `backend/services/optimizer.py` | 601 |
-| `src/backtester/ddif_optimizer.rs` | `backend/services/walk_forward.py` | 1,161 |
-| `src/backtester/realistic_engine.rs` | `backend/services/backtest_engine.py` 확장 | 1,002 |
-| `src/app/mod.rs` + `runner.rs` | `backend/services/demo_trading.py` | 1,235 |
-| `src/marketdata/ws.rs` + `bars.rs` | `backend/services/binance_ws.py` | ~700 |
-| `src/strategy/logic.rs` | AI 프롬프트에 전략 로직 반영 | 492 |
+| RCoinFutTrader 원본 | → TradeCoach-AI | 줄 수 | Phase |
+|---------------------|-----------------|-------|-------|
+| `backtester/realistic_engine.rs` | `services/futures_engine.py` | 1,002 | 1 |
+| `backtester/indicators.rs` | `services/indicators.py` | 799 | 1 |
+| `strategy/indicators.rs` | `services/indicators.py` | 334 | 1 |
+| `backtester/metrics.rs` | `services/metrics.py` | 487 | 1 |
+| `backtester/data.rs` | `services/data_loader.py` | 550 | 1 |
+| `backtester/optimizer.rs` | `services/optimizer.py` | 601 | 2 |
+| `backtester/ddif_optimizer.rs` | `services/walk_forward.py` | 1,161 | 2 |
+| `marketdata/ws.rs` + `bars.rs` | `services/binance_ws.py` | ~700 | 3 |
+| `app/mod.rs` + `runner.rs` | `services/demo_trading.py` | 1,235 | 3 |
+| `strategy/logic.rs` | `services/ddif_strategy.py` | 492 | 3 |
