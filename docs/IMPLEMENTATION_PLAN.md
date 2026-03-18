@@ -443,3 +443,238 @@ CREATE TABLE onchain_signals (
 | `marketdata/ws.rs` + `bars.rs` | `services/binance_ws.py` | ~700 | 3 |
 | `app/mod.rs` + `runner.rs` | `services/demo_trading.py` | 1,235 | 3 |
 | `strategy/logic.rs` | `services/ddif_strategy.py` | 492 | 3 |
+
+---
+
+## 프론트엔드 UI/UX 계획
+
+### 현재 컴포넌트 구조 (33개 TSX 파일)
+
+```
+frontend/
+├── app/
+│   ├── page.tsx                    (랜딩)
+│   ├── layout.tsx                  (루트 레이아웃)
+│   ├── chat/page.tsx               (AI 채팅)
+│   └── strategies/
+│       ├── page.tsx                (전략 목록)
+│       └── [id]/page.tsx           (전략 상세)
+├── components/
+│   ├── chat/                       (채팅 관련 8개)
+│   ├── common/                     (공통 6개)
+│   ├── landing/                    (랜딩 7개)
+│   ├── layout/                     (레이아웃 2개)
+│   ├── market/                     (시장 1개)
+│   └── wallet/                     (지갑 3개)
+├── stores/
+│   ├── chatStore.ts
+│   ├── authStore.ts
+│   └── languageStore.ts
+└── lib/
+    ├── api.ts
+    ├── i18n.ts
+    └── types.ts
+```
+
+### Phase 1 프론트엔드 변경
+
+#### 수정할 컴포넌트
+
+| 컴포넌트 | 변경 내용 |
+|---------|----------|
+| `StrategyCard.tsx` | 레버리지 입력 (1~125x 슬라이더), 방향 선택 (Long/Short/Both 라디오), 분할익절/추적손절 토글 |
+| `BacktestResult.tsx` | 확장 메트릭 표시 (CAGR, Profit Factor, Calmar Ratio), Long/Short 별도 승률 |
+| `BacktestChart.tsx` | 롱/숏 진입점 마커 색상 구분 (녹색/빨간색) |
+| `BacktestSummary.tsx` | AI 리포트에 선물 리스크 코멘트 표시 |
+| `types.ts` | `ParsedStrategy` 타입에 `leverage`, `direction`, `partial_exit`, `trailing_stop` 추가 |
+
+#### 신규 컴포넌트 없음 (기존 컴포넌트 확장만)
+
+#### UX 플로우
+```
+사용자 → 채팅에서 전략 생성
+     → StrategyCard에 레버리지/방향 설정 UI 추가됨
+     → "Run Backtest" 클릭 → 선물 메트릭 포함 결과 표시
+     → AI 리포트에 "레버리지 10x → 강제청산 가격 $XX,XXX" 포함
+```
+
+### Phase 2 프론트엔드 변경
+
+#### 수정할 컴포넌트
+
+| 컴포넌트 | 변경 내용 |
+|---------|----------|
+| `strategies/[id]/page.tsx` | "Optimize" 버튼 + "Walk-Forward" 버튼 추가 |
+
+#### 신규 컴포넌트
+
+| 컴포넌트 | 위치 | 설명 |
+|---------|------|------|
+| `OptimizeModal.tsx` | `components/strategy/` | 파라미터 범위 입력 폼 + 결과 테이블 |
+| `OptimizeResults.tsx` | `components/strategy/` | 상위 10개 파라미터 조합 테이블 (정렬/선택 가능) |
+| `WalkForwardChart.tsx` | `components/strategy/` | IS/OOS 수익률 비교 바 차트 (4윈도우) |
+| `WalkForwardResult.tsx` | `components/strategy/` | 과적합 판정 배지 (Pass/Fail) + 윈도우별 상세 |
+
+#### OptimizeModal 레이아웃
+```
+┌─────────────────────────────────────┐
+│ Optimize Strategy                    │
+│                                      │
+│ Parameter Ranges:                    │
+│ ┌──────────┬───────────────────┐    │
+│ │ RSI Period│ [10] [14] [20]    │    │
+│ │ TP (%)    │ [1.0] [1.5] [2.0] │    │
+│ │ SL (%)    │ [-0.3] [-0.4] [-0.5]│  │
+│ │ Leverage  │ [5] [10] [20]     │    │
+│ └──────────┴───────────────────┘    │
+│                                      │
+│ Objective: [Sharpe ▼]               │
+│ Max Combinations: [100]              │
+│                                      │
+│ [Cancel]          [Run Optimization] │
+└─────────────────────────────────────┘
+         ↓ 완료 후
+┌─────────────────────────────────────┐
+│ Top 10 Results                       │
+│ ┌────┬─────┬────┬────┬──────┬────┐ │
+│ │Rank│RSI  │TP  │SL  │Sharpe│Apply│ │
+│ │ 1  │ 14  │1.5 │-0.4│ 2.1  │ [✓]│ │
+│ │ 2  │ 20  │2.0 │-0.3│ 1.8  │ [ ]│ │
+│ │ ...│     │    │    │      │    │ │
+│ └────┴─────┴────┴────┴──────┴────┘ │
+│                    [Apply Selected]  │
+└─────────────────────────────────────┘
+```
+
+#### WalkForward 차트 레이아웃
+```
+┌─────────────────────────────────────┐
+│ Walk-Forward Analysis    [Pass ✅]   │
+│                                      │
+│ IS Return  ████████████ 47%          │
+│ OOS Return ███████      28% (60%)    │
+│                                      │
+│ Window 1: IS 45% → OOS 27% ✅       │
+│ Window 2: IS 52% → OOS 31% ✅       │
+│ Window 3: IS 43% → OOS 25% ✅       │
+│ Window 4: IS 48% → OOS 29% ✅       │
+│                                      │
+│ Avg OOS/IS Ratio: 60% (≥50% = Pass) │
+└─────────────────────────────────────┘
+```
+
+#### 로딩 UX
+- 최적화 실행 중: 프로그레스 바 + "Testing 45/100 combinations..." 텍스트
+- Walk-Forward 실행 중: "Analyzing Window 2/4..." 단계별 진행
+
+### Phase 3 프론트엔드 변경
+
+#### 신규 페이지
+
+`app/trading/page.tsx` — 모의투자 대시보드
+
+#### 신규 컴포넌트
+
+| 컴포넌트 | 위치 | 설명 |
+|---------|------|------|
+| `TradingDashboard.tsx` | `components/trading/` | 메인 레이아웃 (차트 + 포지션 + 히스토리) |
+| `LiveChart.tsx` | `components/trading/` | lightweight-charts WebSocket 실시간 가격 차트 |
+| `PositionCard.tsx` | `components/trading/` | 현재 포지션 (Long/Short, 진입가, PnL, 레버리지) |
+| `BalanceCard.tsx` | `components/trading/` | 잔고/마진/미실현PnL 표시 |
+| `DemoTradeLog.tsx` | `components/trading/` | 실시간 거래 히스토리 테이블 |
+| `DemoControls.tsx` | `components/trading/` | 시작/중지 버튼 + 전략/심볼/레버리지 선택 |
+| `SignalIndicator.tsx` | `components/trading/` | 매수/매도/대기 신호 실시간 표시 |
+
+#### 수정할 컴포넌트
+
+| 컴포넌트 | 변경 내용 |
+|---------|----------|
+| `Navigation.tsx` | "Trading" 네비 링크 추가 |
+| `layout.tsx` | /trading 경로 메타데이터 |
+
+#### 모의투자 대시보드 레이아웃
+```
+┌────────────────────────────────────────────────────┐
+│ Header: TradeCoach AI │ Chat │ Strategies │ Trading │
+├────────────────────────────────────────────────────┤
+│ ┌──────────────────────────────────┐ ┌───────────┐│
+│ │                                  │ │ Position  ││
+│ │     Live Price Chart             │ │ LONG BTC  ││
+│ │     (lightweight-charts)         │ │ @65,200   ││
+│ │     + 진입/청산 마커             │ │ PnL +$32  ││
+│ │                                  │ │ Lev: 10x  ││
+│ │                                  │ ├───────────┤│
+│ │                                  │ │ Balance   ││
+│ │                                  │ │ $1,247    ││
+│ │                                  │ │ Margin $50││
+│ └──────────────────────────────────┘ └───────────┘│
+│ ┌──────────────────────┐ ┌────────────────────────┐│
+│ │ Controls             │ │ Trade Log              ││
+│ │ Strategy: [DDIF ▼]   │ │ #23 LONG  +$12  +1.2% ││
+│ │ Symbol:   [BTCUSDT ▼]│ │ #22 SHORT -$5   -0.5% ││
+│ │ Leverage: [10x]      │ │ #21 LONG  +$28  +2.8% ││
+│ │ [▶ Start] [■ Stop]   │ │ ...                    ││
+│ └──────────────────────┘ └────────────────────────┘│
+└────────────────────────────────────────────────────┘
+```
+
+#### 모바일 레이아웃
+```
+┌──────────────────┐
+│ Trading          │
+├──────────────────┤
+│ Live Chart       │
+│ (전체 너비)      │
+├──────────────────┤
+│ Position | Balance│
+│ (2열 그리드)     │
+├──────────────────┤
+│ Signal: 🟢 LONG  │
+├──────────────────┤
+│ Controls         │
+│ [▶ Start] [■ Stop]│
+├──────────────────┤
+│ Trade Log (스크롤)│
+└──────────────────┘
+```
+
+#### 실시간 업데이트 방식
+- **가격 차트**: WebSocket (`/ws/price/{symbol}`) → 100ms 간격 업데이트
+- **포지션/잔고**: 2초 폴링 (`GET /trading/demo/status`)
+- **거래 로그**: 포지션 변경 시에만 리페치
+
+### Phase 5 프론트엔드 변경
+
+#### 수정할 컴포넌트
+
+| 컴포넌트 | 변경 내용 |
+|---------|----------|
+| `strategies/[id]/page.tsx` | "Mint as NFT" 버튼 + "Verified ✅" 배지 |
+| `StrategyCard.tsx` | 온체인 등록 상태 아이콘 (🔗 체인 아이콘) |
+
+#### 신규 컴포넌트
+
+| 컴포넌트 | 위치 | 설명 |
+|---------|------|------|
+| `MintModal.tsx` | `components/blockchain/` | cNFT 민팅 확인 모달 (전략 해시 표시 + 비용 안내) |
+| `OnchainBadge.tsx` | `components/blockchain/` | "Verified on Solana" 배지 (Merkle proof 상태) |
+| `SignalHistory.tsx` | `components/blockchain/` | 온체인 신호 히스토리 탭 (DAS API 조회 결과) |
+| `VerifyButton.tsx` | `components/blockchain/` | 무결성 검증 버튼 (DB vs 온체인 해시 비교) |
+
+#### i18n 번역 추가
+
+각 Phase에서 신규 UI 텍스트를 `lib/i18n.ts`에 추가:
+- Phase 1: ~15키 (레버리지, 방향, 분할익절 관련)
+- Phase 2: ~25키 (최적화 모달, Walk-Forward 결과)
+- Phase 3: ~30키 (모의투자 대시보드 전체)
+- Phase 5: ~15키 (블록체인 민팅, 검증, 신호 히스토리)
+
+### 컴포넌트 변경 요약
+
+| Phase | 수정 | 신규 | 합계 |
+|-------|------|------|------|
+| Phase 1 | 5개 | 0개 | 5개 |
+| Phase 2 | 1개 | 4개 | 5개 |
+| Phase 3 | 2개 | 7개 (+1 page) | 10개 |
+| Phase 5 | 2개 | 4개 | 6개 |
+| **합계** | **10개** | **15개** | **26개** |
