@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import AuthGuard from "@/components/common/AuthGuard";
 import { getStrategies, sendMessage, saveStrategy, deleteStrategy } from "@/lib/api";
 import type { Strategy, ChatResponse } from "@/lib/types";
 import TokenPrices from "@/components/market/TokenPrices";
@@ -86,6 +87,7 @@ export default function StrategiesPage() {
   };
 
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-[#0A0F1C] text-white">
       {/* 헤더 */}
       <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md">
@@ -279,5 +281,6 @@ export default function StrategiesPage() {
         </div>
       )}
     </div>
+    </AuthGuard>
   );
 }

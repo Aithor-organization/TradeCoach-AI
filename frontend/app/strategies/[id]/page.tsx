@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import AuthGuard from "@/components/common/AuthGuard";
 import { getStrategy, runBacktest, updateStrategy, forkStrategy, getBacktestHistory, deleteBacktestHistory, deleteStrategy } from "@/lib/api";
 import StrategyCard from "@/components/chat/StrategyCard";
 import BacktestChart from "@/components/chat/BacktestChart";
@@ -506,6 +507,7 @@ export default function StrategyDetailPage() {
 
   // 내 전략: 2-Column (편집 가능 + AI 채팅)
   return (
+    <AuthGuard>
     <div className="h-screen flex flex-col bg-[#0A0F1C] text-white">
       {/* 헤더 */}
       <header className="h-14 flex items-center justify-between px-6 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md flex-shrink-0">
@@ -748,5 +750,6 @@ export default function StrategyDetailPage() {
         </div>
       )}
     </div>
+    </AuthGuard>
   );
 }

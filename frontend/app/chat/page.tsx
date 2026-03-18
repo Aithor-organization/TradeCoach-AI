@@ -8,8 +8,7 @@ import ChatWindow from "@/components/chat/ChatWindow";
 import ChatInput from "@/components/chat/ChatInput";
 import { sendMessageStream, sendMessageWithImage } from "@/lib/api";
 import { useLanguageStore } from "@/stores/languageStore";
-import { useAuthStore } from "@/stores/authStore";
-import AuthModal from "@/components/common/AuthModal";
+import AuthGuard from "@/components/common/AuthGuard";
 import { t } from "@/lib/i18n";
 import type { ChatMessage, ChatResponse, ParsedStrategy } from "@/lib/types";
 
@@ -200,17 +199,8 @@ function ChatPageInner() {
     requestCoaching();
   }, [searchParams, currentStrategy, lastBacktestResult, currentStrategyId, addMessage, updateMessage, setLoading, setCurrentStrategy]);
 
-  const { isAuthenticated } = useAuthStore();
-
-  if (!isAuthenticated) {
-    return (
-      <div className="h-screen bg-[#0A0F1C]">
-        <AuthModal />
-      </div>
-    );
-  }
-
   return (
+    <AuthGuard>
     <div className="h-screen flex flex-col bg-[#0A0F1C]">
       {/* 상단 바 */}
       <header className="h-14 flex items-center justify-between px-4 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md flex-shrink-0">
@@ -262,5 +252,6 @@ function ChatPageInner() {
       {/* 입력 바 */}
       <ChatInput onSend={handleSend} language={language} />
     </div>
+    </AuthGuard>
   );
 }
