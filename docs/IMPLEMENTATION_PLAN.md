@@ -257,73 +257,162 @@ CREATE TABLE demo_trades (
 
 ---
 
-## Phase 5: 블록체인 통합 (7일)
+## Phase 5: 블록체인 통합 — 상태 압축 + cNFT (7일)
 
 ### 목표
-전략과 거래 신호를 블록체인에 기록하여 무결성 보장. 전략은 등록/삭제만 가능 (수정 불가).
+**Solana State Compression**을 활용하여 전략을 cNFT로 등록하고, 매매 신호를 Merkle Tree에 압축 기록.
+전략은 등록/삭제만 가능 (수정 불가). 비용: 100만 건 신호 기록에 ~$1.
 
-### 5.1 전략 온체인 등록 (`backend/services/blockchain.py` 신규)
-- [ ] Solana Program (스마트 컨트랙트) 설계
-  - 전략 등록: JSON 해시 + 메타데이터 → 온체인 저장
-  - 전략 삭제: 소유자만 삭제 가능 (등록자 검증)
-  - **수정 불가**: 등록 후 변경 차단 (immutable)
-- [ ] 전략 등록 시 JSON 전체를 IPFS/Arweave에 저장, 해시만 온체인
-- [ ] 등록된 전략 조회 API
-- [ ] 프론트엔드 "Register on Chain" 버튼
+### 아키텍처
 
-### 5.2 거래 신호 트랜잭션 기록
-- [ ] 매매 신호 발생 시 자동으로 Solana 트랜잭션 생성
-  - 신호 타입 (Long/Short/Close)
-  - 타임스탬프
-  - 전략 ID (온체인 참조)
-  - 진입/청산 가격
-- [ ] 신호 히스토리 온체인 조회
-- [ ] 트랜잭션 비용 최소화 (배치 처리 또는 압축)
+```
+전략 생성 → cNFT 민팅 (Bubblegum, isMutable: false)
+               ├── 메타데이터: 전략명, 전략 JSON 해시(SHA256)
+               ├── 원본 JSON → Arweave/IPFS 영구 저장
+               └── 소유자만 burn(삭제) 가능
 
-### 5.3 무결성 검증
-- [ ] 전략 변경 감지: DB 전략 vs 온체인 해시 비교
-- [ ] 거래 내역 감사 추적: 온체인 기록 vs 로컬 DB 일치 확인
-- [ ] 프론트엔드 "Verified" 배지 (온체인 등록 전략)
+모의투자 실행 → 매매 신호 발생
+               ├── 신호 데이터 SHA256 해시 생성
+               ├── Merkle Tree에 압축 리프로 append
+               └── 원본 데이터 → Helius DAS API 인덱서에 자동 저장
 
-### 5.4 API 엔드포인트
-- [ ] `POST /blockchain/strategy/register` — 전략 온체인 등록
-- [ ] `DELETE /blockchain/strategy/{id}` — 전략 온체인 삭제
-- [ ] `GET /blockchain/strategy/{id}/verify` — 무결성 검증
-- [ ] `POST /blockchain/signal` — 거래 신호 트랜잭션 기록
-- [ ] `GET /blockchain/signal/history/{strategy_id}` — 신호 히스토리 조회
+검증/조회 → Helius DAS API
+               ├── getAssetsByGroup → 전략 cNFT + 신호 리프 목록
+               ├── getAssetProof → Merkle proof로 무결성 검증
+               └── DB 해시 vs 온체인 해시 비교 → "Verified" 배지
+```
 
-### 5.5 기술 선택지
+### 5.1 Merkle Tree 설정
 
-| 방식 | 장점 | 단점 |
+- [ ] 앱 초기화 시 Concurrent Merkle Tree 생성 (한 번)
+  - `maxDepth: 20` → 최대 1,048,576개 리프
+  - `maxBufferSize: 64` → 동시 쓰기 지원
+  - 비용: ~$0.05 (tree 생성 rent)
+- [ ] Tree authority = 백엔드 서버 키페어 (자동 신호 기록용)
+
+### 5.2 전략 cNFT 민팅 (`backend/services/blockchain.py` 신규)
+
+- [ ] 전략 JSON → SHA256 해시 생성
+- [ ] Bubblegum `mintToCollectionV1`로 cNFT 민팅
+  ```
+  metadata:
+    name: "Strategy: DDIF BTC 15m"
+    uri: "arweave://..." (전략 JSON 전체)
+    attributes:
+      strategy_hash: "a3f2c8..."
+      created_by: "user_wallet_or_email"
+      immutable: true
+  ```
+- [ ] `isMutable: false` 설정 → 민팅 후 수정 불가
+- [ ] burn (삭제): 소유자 서명 필요
+- **비용: ~$0.00005/전략**
+
+### 5.3 매매 신호 압축 기록
+
+- [ ] 모의투자 엔진에서 신호 발생 시 자동 호출
+- [ ] 신호 데이터 구조:
+  ```json
+  {
+    "strategy_nft_id": "...",
+    "signal_type": "long_entry",
+    "symbol": "BTCUSDT",
+    "price": 65000.50,
+    "leverage": 10,
+    "timestamp": 1710720000
+  }
+  ```
+- [ ] SHA256(signal_data) → Merkle Tree 리프로 append
+- [ ] 원본 데이터는 Helius 인덱서가 자동 저장 (DAS API로 조회)
+- **비용: ~$0.00001/신호** (100만 건 = ~$1)
+
+### 5.4 조회 + 검증
+
+- [ ] **전략 조회**: Helius DAS `getAssetsByOwner` → 내 전략 cNFT 목록
+- [ ] **신호 히스토리**: Helius DAS `getAssetsByGroup` → 전략별 신호 리프 목록
+- [ ] **무결성 검증**: `getAssetProof` → Merkle proof 검증
+  - DB 신호 해시 vs 온체인 리프 해시 비교
+  - 불일치 시 → 조작 감지 경고
+- [ ] **선택적 공개**: 소유자가 원본 공개 → 해시 일치 검증 가능
+
+### 5.5 API 엔드포인트
+
+- [ ] `POST /blockchain/strategy/mint` — 전략을 cNFT로 민팅
+- [ ] `POST /blockchain/strategy/{id}/burn` — 전략 cNFT 삭제 (소유자만)
+- [ ] `GET /blockchain/strategy/{id}/verify` — 전략 무결성 검증 (DB vs 온체인 해시)
+- [ ] `POST /blockchain/signal` — 매매 신호 압축 기록 (자동 호출)
+- [ ] `GET /blockchain/signal/history/{strategy_id}` — 신호 히스토리 조회 (DAS API)
+- [ ] `GET /blockchain/signal/{id}/proof` — 개별 신호 Merkle proof 검증
+
+### 5.6 프론트엔드 UI
+
+- [ ] 전략 상세 페이지에 "Mint as NFT" 버튼
+- [ ] 온체인 등록 전략에 "Verified on Solana" 배지
+- [ ] 신호 히스토리 탭 (온체인 기록 목록 + Merkle proof 상태)
+- [ ] 전략 공개/비공개 토글 (원본 공개 시 검증 가능)
+
+### 5.7 기술 스택
+
+| 라이브러리 | 용도 |
+|-----------|------|
+| `@solana/spl-account-compression` | Merkle Tree 생성/관리 |
+| `@metaplex-foundation/mpl-bubblegum` | cNFT 민팅/burn |
+| `Helius DAS API` | 압축 데이터 인덱싱/조회/proof |
+| `Arweave` 또는 `IPFS (Pinata)` | 전략 원본 영구 저장 |
+| `@solana/web3.js` | Solana 트랜잭션 |
+
+### 5.8 비용 추정
+
+| 항목 | 비용 | 빈도 |
 |------|------|------|
-| **Solana Program** | 기존 Phantom 연동 활용 | 개발 복잡도 높음 |
-| **Anchor Framework** | Solana 개발 간소화 | Rust 필요 |
-| **IPFS + Solana 해시** | 저비용, 대용량 데이터 | 2단계 조회 |
-| **Arweave** | 영구 저장 | 별도 비용 |
+| Merkle Tree 생성 | ~$0.05 | 1회 |
+| 전략 cNFT 민팅 | ~$0.00005 | 전략당 |
+| 매매 신호 기록 | ~$0.00001 | 신호당 |
+| Helius DAS 조회 | 무료 | 무제한 |
+| Arweave 저장 | ~$0.001/KB | 전략당 |
+| **100명 유저 × 100전략 × 10만 신호** | **~$2** | **총** |
 
-### 5.6 DB 스키마 추가
+### 5.9 DB 스키마 추가
 
 ```sql
--- 온체인 전략 등록 기록
+-- 온체인 전략 (cNFT)
 CREATE TABLE onchain_strategies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   strategy_id UUID REFERENCES strategies(id),
-  tx_signature VARCHAR(88) NOT NULL,
-  onchain_hash VARCHAR(64) NOT NULL,
-  ipfs_cid TEXT,
+  asset_id VARCHAR(44) NOT NULL,      -- cNFT asset ID
+  merkle_tree VARCHAR(44) NOT NULL,   -- Merkle Tree address
+  strategy_hash VARCHAR(64) NOT NULL, -- SHA256 of strategy JSON
+  arweave_uri TEXT,                    -- Arweave/IPFS URI for full JSON
+  is_public BOOLEAN DEFAULT FALSE,    -- 원본 공개 여부
   registered_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 온체인 거래 신호
+-- 온체인 매매 신호 (로컬 캐시, 원본은 Helius DAS)
 CREATE TABLE onchain_signals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   strategy_id UUID REFERENCES strategies(id),
-  signal_type TEXT NOT NULL, -- 'long_entry' | 'short_entry' | 'close'
+  leaf_index INTEGER NOT NULL,        -- Merkle Tree leaf index
+  signal_hash VARCHAR(64) NOT NULL,   -- SHA256 of signal data
+  signal_type TEXT NOT NULL,           -- 'long_entry' | 'short_entry' | 'close'
+  symbol VARCHAR(20),
   price DECIMAL,
-  tx_signature VARCHAR(88) NOT NULL,
+  leverage INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+### 5.10 향후 확장: 전략 마켓플레이스
+
+```
+전략 소유자 → cNFT 공개 + 신호 히스토리 공개
+                    ↓
+누구나 검증 (Merkle proof)
+                    ↓
+검증된 전략 → 구독/카피트레이딩
+                    ↓
+수익 발생 시 로열티 (Metaplex Creator Royalty)
+```
+
+이 구조가 Pricing의 **"Web3 Native" 플랜**의 기술적 기반.
 
 ---
 
