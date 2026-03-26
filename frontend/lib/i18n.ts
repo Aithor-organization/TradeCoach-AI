@@ -30,9 +30,10 @@ const translations = {
     "nav.freeStart": "무료로 시작하기",
     "nav.features": "Features",
     "nav.howItWorks": "How It Works",
-    "nav.strategies": "Strategies",
+    "nav.chat": "채팅",
+    "nav.strategies": "전략",
     "nav.pricing": "Pricing",
-    "nav.learn": "Learn",
+    "nav.learn": "학습",
 
     // 전략
     "strategy.newChat": "새 대화",
@@ -419,6 +420,7 @@ const translations = {
     "nav.freeStart": "Get Started Free",
     "nav.features": "Features",
     "nav.howItWorks": "How It Works",
+    "nav.chat": "Chat",
     "nav.strategies": "Strategies",
     "nav.pricing": "Pricing",
     "nav.learn": "Learn",

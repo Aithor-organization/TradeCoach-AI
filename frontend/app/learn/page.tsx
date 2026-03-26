@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import AppHeader from "@/components/layout/AppHeader";
 import { useLanguageStore } from "@/stores/languageStore";
 
 const sections = [
@@ -81,16 +82,7 @@ export default function LearnPage() {
 
   return (
     <div className="min-h-screen bg-[#0A0F1C] text-white">
-      <header className="h-14 flex items-center px-6 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-base font-bold">TradeCoach</span>
-            <span className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-[#22D3EE20] text-[#22D3EE]">AI</span>
-          </Link>
-          <span className="text-[#475569]">/</span>
-          <span className="text-sm text-white">{language === "ko" ? "기능 가이드" : "Feature Guide"}</span>
-        </div>
-      </header>
+      <AppHeader activePage="learn" />
 
       <main className="max-w-3xl mx-auto px-6 py-10 space-y-8">
         <div className="text-center space-y-2">

@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useChatStore } from "@/stores/chatStore";
 import ChatWindow from "@/components/chat/ChatWindow";
@@ -9,6 +8,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import { sendMessageStream, sendMessageWithImage } from "@/lib/api";
 import { useLanguageStore } from "@/stores/languageStore";
 import AuthGuard from "@/components/common/AuthGuard";
+import AppHeader from "@/components/layout/AppHeader";
 import { t } from "@/lib/i18n";
 import type { ChatMessage, ChatResponse, ParsedStrategy } from "@/lib/types";
 
@@ -203,48 +203,28 @@ function ChatPageInner() {
     <AuthGuard>
     <div className="h-screen flex flex-col bg-[#0A0F1C]">
       {/* 상단 바 */}
-      <header className="h-14 flex items-center justify-between px-4 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-base font-bold text-white">TradeCoach</span>
-            <span className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-[#22D3EE20] text-[#22D3EE]">
-              AI
-            </span>
-          </Link>
-          {currentStrategy && (
-            <>
-              <span className="text-[#475569]">/</span>
-              <span className="text-xs text-[#94A3B8] truncate max-w-[200px]">
-                {currentStrategy.name} {t("chat.coaching", language)}
-              </span>
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {/* 언어 토글 */}
-          <button
-            onClick={toggleLanguage}
-            className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#1E293B] border border-[#22D3EE20] hover:border-[#22D3EE50] transition-colors cursor-pointer"
-            title={language === "ko" ? "Switch to English" : "한국어로 전환"}
-          >
-            <span className={`text-xs font-bold ${language === "ko" ? "text-[#22D3EE]" : "text-[#475569]"}`}>한</span>
-            <span className="text-xs text-[#475569]">/</span>
-            <span className={`text-xs font-bold ${language === "en" ? "text-[#22D3EE]" : "text-[#475569]"}`}>EN</span>
-          </button>
-          <Link
-            href="/strategies"
-            className="text-xs text-[#94A3B8] hover:text-white transition-colors"
-          >
-            {t("chat.strategies", language)}
-          </Link>
-          <button
-            onClick={() => clearChat()}
-            className="text-xs text-[#94A3B8] hover:text-white cursor-pointer"
-          >
-            {t("chat.newChat", language)}
-          </button>
-        </div>
-      </header>
+      <AppHeader
+        activePage="chat"
+        rightSlot={
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleLanguage}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#1E293B] border border-[#22D3EE20] hover:border-[#22D3EE50] transition-colors cursor-pointer"
+              title={language === "ko" ? "Switch to English" : "한국어로 전환"}
+            >
+              <span className={`text-xs font-bold ${language === "ko" ? "text-[#22D3EE]" : "text-[#475569]"}`}>한</span>
+              <span className="text-xs text-[#475569]">/</span>
+              <span className={`text-xs font-bold ${language === "en" ? "text-[#22D3EE]" : "text-[#475569]"}`}>EN</span>
+            </button>
+            <button
+              onClick={() => clearChat()}
+              className="text-xs text-[#94A3B8] hover:text-white cursor-pointer"
+            >
+              {t("chat.newChat", language)}
+            </button>
+          </div>
+        }
+      />
 
       {/* 채팅 영역 */}
       <ChatWindow onExampleClick={(text) => handleSend(text)} language={language} />

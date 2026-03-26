@@ -16,6 +16,7 @@ import { getStrategies, publishToMarketplace } from "@/lib/api";
 import { getStrategyPerformance, getStrategyTxHistory } from "@/lib/blockchainApi";
 import type { StrategyPerformance, OnchainTxRecord } from "@/lib/blockchainApi";
 import type { Strategy } from "@/lib/types";
+import AppHeader from "@/components/layout/AppHeader";
 import { useLanguageStore } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
 
@@ -38,6 +39,7 @@ export default function TradingPage() {
   const [loadingTxs, setLoadingTxs] = useState(false);
   const [showStopModal, setShowStopModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // 전략 목록 로드
   useEffect(() => {
@@ -183,28 +185,16 @@ export default function TradingPage() {
     <AuthGuard>
       <div className="min-h-screen bg-[#0A0F1C] text-white">
         {/* 헤더 */}
-        <header className="h-14 flex items-center justify-between px-6 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-base font-bold">TradeCoach</span>
-              <span className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-[#22D3EE20] text-[#22D3EE]">AI</span>
-            </Link>
-            <span className="text-[#475569]">/</span>
-            <span className="text-sm text-white">{t("td.title", language)}</span>
-            {isActive && (
+        <AppHeader
+          activePage="trading"
+          rightSlot={
+            isActive ? (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#22C55E]/20 text-[#22C55E] animate-pulse">
                 LIVE
               </span>
-            )}
-          </div>
-          <nav className="hidden sm:flex items-center gap-3 text-xs text-[#94A3B8]">
-            <Link href="/chat" className="hover:text-white transition">Chat</Link>
-            <Link href="/strategies" className="hover:text-white transition">Strategies</Link>
-            <Link href="/trading" className="text-[#22D3EE]">{t("nav.trading", language)}</Link>
-            <Link href="/marketplace" className="hover:text-white transition">{t("nav.marketplace", language)}</Link>
-            <Link href="/learn" className="hover:text-white transition">{t("nav.learn", language)}</Link>
-          </nav>
-        </header>
+            ) : undefined
+          }
+        />
 
         {/* 메인 레이아웃 */}
         <div className="flex flex-1 overflow-hidden" style={{ height: "calc(100vh - 56px)" }}>
@@ -246,8 +236,27 @@ export default function TradingPage() {
             </main>
           ) : (
           <>
+            {/* 모바일 사이드바 토글 버튼 */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="md:hidden fixed bottom-4 left-4 z-30 p-3 rounded-full bg-[#22D3EE] text-[#0A0F1C] shadow-lg cursor-pointer"
+              aria-label="Toggle sidebar"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h8m-8 6h16" />
+              </svg>
+            </button>
+
+            {/* 모바일 사이드바 오버레이 */}
+            {sidebarOpen && (
+              <div
+                className="md:hidden fixed inset-0 z-20 bg-black/50"
+                onClick={() => setSidebarOpen(false)}
+              />
+            )}
+
             {/* 왼쪽 사이드바: 전략 목록 */}
-            <aside className="w-64 shrink-0 border-r border-[#1E293B] bg-[#0F172A] overflow-y-auto">
+            <aside className={`w-64 shrink-0 border-r border-[#1E293B] bg-[#0F172A] overflow-y-auto fixed md:static inset-y-0 left-0 z-30 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`} style={{ top: "56px" }}>
               <div className="px-4 py-3 border-b border-[#1E293B]">
                 <h3 className="text-xs font-semibold text-[#475569] uppercase tracking-wider">
                   {language === "ko" ? "민팅된 전략" : "Minted Strategies"}

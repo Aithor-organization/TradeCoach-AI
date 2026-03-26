@@ -8,6 +8,8 @@ import {
   getStrategyPerformance,
 } from "@/lib/blockchainApi";
 import type { PublicStrategy, PlatformInfo, StrategyPerformance } from "@/lib/blockchainApi";
+import AuthGuard from "@/components/common/AuthGuard";
+import AppHeader from "@/components/layout/AppHeader";
 import { useLanguageStore } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
 
@@ -64,25 +66,10 @@ export default function MarketplacePage() {
     });
 
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-[#0A0F1C] text-white">
       {/* 헤더 */}
-      <header className="h-14 flex items-center justify-between px-6 border-b border-[#1E293B] bg-[#0A0F1CCC] backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-base font-bold">TradeCoach</span>
-            <span className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-[#22D3EE20] text-[#22D3EE]">AI</span>
-          </Link>
-          <span className="text-[#475569]">/</span>
-          <span className="text-sm text-white">{t("mp.title", language)}</span>
-        </div>
-        <nav className="hidden sm:flex items-center gap-3 text-xs text-[#94A3B8]">
-          <Link href="/chat" className="hover:text-white transition">Chat</Link>
-          <Link href="/strategies" className="hover:text-white transition">Strategies</Link>
-          <Link href="/trading" className="hover:text-white transition">{t("nav.trading", language)}</Link>
-          <Link href="/marketplace" className="text-[#22D3EE]">{t("nav.marketplace", language)}</Link>
-          <Link href="/learn" className="hover:text-white transition">{t("nav.learn", language)}</Link>
-        </nav>
-      </header>
+      <AppHeader activePage="marketplace" />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
         {/* 히어로 */}
@@ -262,5 +249,6 @@ export default function MarketplacePage() {
         )}
       </main>
     </div>
+    </AuthGuard>
   );
 }
