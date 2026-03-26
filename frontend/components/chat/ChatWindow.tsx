@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChatStore } from "@/stores/chatStore";
+import { useAuthStore } from "@/stores/authStore";
 import { saveStrategy, runBacktest, linkBacktestsToStrategy } from "@/lib/api";
 import StrategyCard from "./StrategyCard";
 import BacktestResult from "./BacktestResult";
@@ -91,6 +92,21 @@ function MessageBubble({ message, language = "ko" }: { message: ChatMessage; lan
   const handleSave = useCallback(async () => {
     const strategy = message.metadata?.parsed_strategy;
     if (!strategy) return;
+
+    // 로그인 체크: 미로그인 시 AuthGuard가 있는 페이지로 리다이렉트
+    const { isAuthenticated } = useAuthStore.getState();
+    if (!isAuthenticated) {
+      // 전략 데이터를 sessionStorage에 임시 저장
+      sessionStorage.setItem("tc_pending_strategy", JSON.stringify({
+        name: strategy.name || "New Strategy",
+        parsed_strategy: strategy,
+        raw_input: message.content || "",
+      }));
+      alert(language === "ko" ? "전략을 저장하려면 로그인이 필요합니다." : "Please login to save your strategy.");
+      router.push("/strategies");
+      return;
+    }
+
     setIsSaving(true);
     try {
       const result: any = await saveStrategy(strategy.name || (language === "en" ? "New Strategy" : "새 전략"), strategy as unknown as Record<string, unknown>, message.content || "");
