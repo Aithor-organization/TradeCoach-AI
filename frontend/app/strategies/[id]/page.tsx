@@ -503,18 +503,6 @@ export default function StrategyDetailPage() {
               {/* 선택된 결과 */}
               {history[selectedIndex] && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  {/* 적용 버튼 */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-[#1E293B] rounded-xl border border-[#22D3EE20] gap-3">
-                    <span className="text-xs text-[#94A3B8]">
-                      {t("sd.period", language)} {history[selectedIndex].startDate} ~ {history[selectedIndex].endDate}
-                    </span>
-                    <button
-                      onClick={() => handleStrategyUpdate(history[selectedIndex].strategy as ParsedStrategy)}
-                      className="whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0F172A] text-[#22D3EE] border border-[#22D3EE30] hover:bg-[#22D3EE10] transition-colors"
-                    >
-                      {t("sd.applyStrategy", language)}
-                    </button>
-                  </div>
 
                   {!history[selectedIndex]?.result ? (
                     <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] p-6 text-center text-sm text-[#475569]">
@@ -802,18 +790,6 @@ export default function StrategyDetailPage() {
                 {/* 선택된 결과 */}
                 {history[selectedIndex] && (
                   <div className="space-y-4 animate-in fade-in duration-200">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-[#1E293B] rounded-xl border border-[#22D3EE20] gap-3">
-                      <span className="text-xs text-[#94A3B8]">
-                        {t("sd.period", language)} {history[selectedIndex].startDate} ~ {history[selectedIndex].endDate}
-                      </span>
-                      <button
-                        onClick={() => handleStrategyUpdate(history[selectedIndex].strategy as ParsedStrategy)}
-                        className="whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0F172A] text-[#22D3EE] border border-[#22D3EE30] hover:bg-[#22D3EE10] transition-colors"
-                      >
-                        {t("sd.applyStrategy", language)}
-                      </button>
-                    </div>
-
                     {!history[selectedIndex]?.result ? (
                       <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] p-6 text-center text-sm text-[#475569]">
                         {language === "ko" ? "전략이 수정되었습니다. 백테스트를 실행하여 결과를 확인하세요." : "Strategy modified. Run backtest to see results."}
