@@ -171,7 +171,9 @@ async def get_strategies(user_id: Optional[str] = None) -> list:
             )
             if res.status_code == 200:
                 db_strategies = res.json()
-                # DB 전략 + 예시 전략 합쳐서 반환
+                # 로그인 사용자: 본인 전략만 반환, 비로그인: 예시 포함
+                if user_id:
+                    return db_strategies
                 return db_strategies + get_example_strategies()
             logger.error(f"get_strategies 실패: {res.status_code} {res.text}")
             return get_example_strategies()
@@ -255,6 +257,193 @@ async def delete_strategy_by_id(strategy_id: str) -> bool:
             params={"id": f"eq.{strategy_id}"},
         )
         return res.status_code == 200
+
+
+async def save_trade_tx(
+    strategy_id: str,
+    session_id: str,
+    tx_signature: str,
+    merkle_root: str = "",
+    trade_hash: str = "",
+    trades_count: int = 0,
+    network: str = "devnet",
+    explorer_url: str = "",
+    record_mode: str = "verify",
+) -> Optional[dict]:
+    """TX 기록을 DB에 저장 (하이브리드: 즉시 조회용 캐시)"""
+    if not _is_available():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.post(
+                _rest_url("trade_tx_records"),
+                headers=_headers(),
+                json={
+                    "strategy_id": strategy_id,
+                    "session_id": session_id,
+                    "tx_signature": tx_signature,
+                    "merkle_root": merkle_root,
+                    "trade_hash": trade_hash,
+                    "trades_count": trades_count,
+                    "network": network,
+                    "explorer_url": explorer_url,
+                    "record_mode": record_mode,
+                },
+            )
+            if res.status_code in (200, 201) and res.json():
+                return res.json()[0] if isinstance(res.json(), list) else res.json()
+            logger.warning(f"save_trade_tx 실패: {res.status_code} {res.text[:100]}")
+            return None
+    except Exception as e:
+        logger.warning(f"save_trade_tx 예외: {e}")
+        return None
+
+
+async def get_trade_tx_records(strategy_id: str, limit: int = 20) -> list:
+    """전략의 TX 기록을 DB에서 조회 (즉시, 서버 재시작 무관)"""
+    if not _is_available():
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                _rest_url("trade_tx_records"),
+                headers=_headers(),
+                params={
+                    "strategy_id": f"eq.{strategy_id}",
+                    "select": "*",
+                    "order": "created_at.desc",
+                    "limit": str(limit),
+                },
+            )
+            return res.json() if res.status_code == 200 else []
+    except Exception as e:
+        logger.warning(f"get_trade_tx_records 예외: {e}")
+        return []
+
+
+async def save_trade_session(
+    strategy_id: str, session_id: str, record_mode: str,
+    symbol: str, leverage: int, initial_balance: float, final_balance: float,
+    total_trades: int, winning_trades: int, total_pnl: float, win_rate: float,
+    tx_signature: str = "",
+) -> Optional[dict]:
+    """트레이딩 세션 결과를 DB에 저장"""
+    if not _is_available():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.post(
+                _rest_url("trade_sessions"),
+                headers=_headers(),
+                json={
+                    "strategy_id": strategy_id, "session_id": session_id,
+                    "record_mode": record_mode, "symbol": symbol,
+                    "leverage": leverage, "initial_balance": initial_balance,
+                    "final_balance": final_balance, "total_trades": total_trades,
+                    "winning_trades": winning_trades, "total_pnl": round(total_pnl, 4),
+                    "win_rate": round(win_rate, 2), "tx_signature": tx_signature,
+                },
+            )
+            if res.status_code in (200, 201):
+                data = res.json()
+                return data[0] if isinstance(data, list) and data else data
+            logger.warning(f"save_trade_session: {res.status_code}")
+    except Exception as e:
+        logger.warning(f"save_trade_session 예외: {e}")
+    return None
+
+
+async def save_trade_records(strategy_id: str, session_id: str, trades: list[dict]) -> int:
+    """개별 거래 기록을 DB에 배치 저장"""
+    if not _is_available() or not trades:
+        return 0
+    try:
+        rows = [
+            {
+                "strategy_id": strategy_id, "session_id": session_id,
+                "trade_index": i, "side": t.get("side", ""),
+                "entry_price": t.get("entry_price", 0),
+                "exit_price": t.get("exit_price", 0),
+                "pnl": round(t.get("pnl", 0), 4),
+                "exit_reason": t.get("exit_reason", ""),
+            }
+            for i, t in enumerate(trades)
+        ]
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.post(
+                _rest_url("trade_records"),
+                headers=_headers(),
+                json=rows,
+            )
+            if res.status_code in (200, 201):
+                return len(rows)
+            logger.warning(f"save_trade_records: {res.status_code}")
+    except Exception as e:
+        logger.warning(f"save_trade_records 예외: {e}")
+    return 0
+
+
+async def get_strategy_performance_db(strategy_id: str) -> Optional[dict]:
+    """전략의 누적 성과를 DB에서 집계"""
+    if not _is_available():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                _rest_url("trade_sessions"),
+                headers=_headers(),
+                params={
+                    "strategy_id": f"eq.{strategy_id}",
+                    "select": "total_trades,winning_trades,total_pnl,win_rate,tx_signature,created_at",
+                    "order": "created_at.desc",
+                    "limit": "50",
+                },
+            )
+            if res.status_code != 200:
+                return None
+            sessions = res.json()
+            if not sessions:
+                return None
+            total_trades = sum(s.get("total_trades", 0) for s in sessions)
+            winning = sum(s.get("winning_trades", 0) for s in sessions)
+            total_pnl = sum(float(s.get("total_pnl", 0)) for s in sessions)
+            win_rate = (winning / total_trades * 100) if total_trades > 0 else 0
+            tx_sigs = [s["tx_signature"] for s in sessions if s.get("tx_signature")]
+            return {
+                "strategy_id": strategy_id,
+                "total_trades": total_trades,
+                "winning_trades": winning,
+                "win_rate": round(win_rate, 1),
+                "total_pnl": round(total_pnl, 2),
+                "sessions": len(sessions),
+                "tx_signatures": tx_sigs[:10],
+                "verified": len(tx_sigs) > 0,
+            }
+    except Exception as e:
+        logger.warning(f"get_strategy_performance_db 예외: {e}")
+    return None
+
+
+async def get_trade_records_db(strategy_id: str, limit: int = 50) -> list:
+    """전략의 개별 거래 기록을 DB에서 조회"""
+    if not _is_available():
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                _rest_url("trade_records"),
+                headers=_headers(),
+                params={
+                    "strategy_id": f"eq.{strategy_id}",
+                    "select": "side,entry_price,exit_price,pnl,exit_reason,created_at",
+                    "order": "created_at.desc",
+                    "limit": str(limit),
+                },
+            )
+            return res.json() if res.status_code == 200 else []
+    except Exception as e:
+        logger.warning(f"get_trade_records_db 예외: {e}")
+    return []
 
 
 async def save_chat_message(strategy_id: str, role: str, content: str,

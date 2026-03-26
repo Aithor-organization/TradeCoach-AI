@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthGuard from "@/components/common/AuthGuard";
-import { getStrategy, runBacktest, updateStrategy, forkStrategy, getBacktestHistory, deleteBacktestHistory, deleteStrategy } from "@/lib/api";
+import OptimizeModal from "@/components/strategy/OptimizeModal";
+import WalkForwardSection from "@/components/strategy/WalkForwardResult";
+import MintNFTButton from "@/components/strategy/MintNFTButton";
+import TimeframePeriodModal, { isPeriodAppropriate } from "@/components/strategy/TimeframePeriodModal";
+import { getStrategy, runBacktest, updateStrategy, forkStrategy, getBacktestHistory, deleteBacktestHistory, deleteStrategy, publishToMarketplace } from "@/lib/api";
 import StrategyCard from "@/components/chat/StrategyCard";
 import BacktestChart from "@/components/chat/BacktestChart";
 import BacktestResult from "@/components/chat/BacktestResult";
@@ -35,7 +39,7 @@ export default function StrategyDetailPage() {
   // 백테스트 기간 설정 (기본값: 최근 90일)
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 90);
+    d.setFullYear(d.getFullYear() - 1);
     return d.toISOString().split("T")[0];
   });
   const [endDate, setEndDate] = useState(() => {
@@ -45,10 +49,16 @@ export default function StrategyDetailPage() {
   // 투자금 (사용자 직접 입력)
   const [investmentAmount, setInvestmentAmount] = useState<number>(1000);
 
+  // 타임프레임-기간 검증 모달
+  const [showPeriodModal, setShowPeriodModal] = useState(false);
+
   // 가져오기 모달
   const [showImportModal, setShowImportModal] = useState(false);
   const [importName, setImportName] = useState("");
   const [importing, setImporting] = useState(false);
+
+  // 최적화 모달 (Phase 2)
+  const [showOptimizeModal, setShowOptimizeModal] = useState(false);
 
   // 직접 수정 모달 (JSON 편집)
   const [showEditModal, setShowEditModal] = useState(false);
@@ -123,17 +133,30 @@ export default function StrategyDetailPage() {
   // 채팅으로 전략이 수정되었는지 추적 (최신 전략 우선 표시용)
   const [strategyUpdatedByChat, setStrategyUpdatedByChat] = useState(false);
 
-  // AI가 전략을 수정하면 즉시 페이지 반영 + DB 업데이트
+  // AI가 전략을 수정하면 즉시 페이지 반영 + DB 업데이트 + 히스토리 추가
   const handleStrategyUpdate = useCallback(async (updated: ParsedStrategy) => {
     setStrategy(prev => {
       if (!prev) return prev;
-      return { ...prev, parsed_strategy: updated };
+      // status를 draft로 리셋 (재민팅 필요)
+      return { ...prev, parsed_strategy: updated, status: "draft" as const };
     });
     setStrategyUpdatedByChat(true);
 
+    // 히스토리에 수정 기록 추가
+    const newHistoryItem: BacktestHistoryItem = {
+      id: `edit-${Date.now()}`,
+      timestamp: new Date(),
+      strategy: updated,
+      result: null,
+      startDate: "",
+      endDate: "",
+    };
+    setHistory(prev => [newHistoryItem, ...prev]);
+    setSelectedIndex(0);
+
     if (!id || isExample) return;
 
-    // 내 전략은 바로 DB 업데이트
+    // 내 전략은 바로 DB 업데이트 (status는 백엔드에서 자동 draft 리셋)
     updateStrategy(id, { parsed_strategy: updated as unknown as Record<string, unknown> }).catch(() => { });
   }, [id, isExample]);
 
@@ -187,14 +210,16 @@ export default function StrategyDetailPage() {
     }
   };
 
-  const handleBacktest = async () => {
-    if (!strategy) return;
+  const executeBacktest = async (overrideStart?: string, overrideEnd?: string) => {
+    if (!strategy) { console.error("No strategy"); return; }
     setTesting(true);
     try {
       const ps = strategy.parsed_strategy;
+      if (!ps) { console.error("No parsed_strategy"); setTesting(false); return; }
       const pair = ps.target_pair || "SOL/USDC";
       const tf = ps.timeframe || "1h";
-      // 투자금 반영: max_positions=1 고정, size_value=사용자 입력값
+      const bStart = overrideStart || startDate;
+      const bEnd = overrideEnd || endDate;
       const strategyWithInvestment = {
         ...ps as unknown as Record<string, unknown>,
         position: {
@@ -208,8 +233,8 @@ export default function StrategyDetailPage() {
         pair,
         tf,
         strategyWithInvestment,
-        startDate || undefined,
-        endDate || undefined,
+        bStart || undefined,
+        bEnd || undefined,
         language,
       ) as BtResult;
 
@@ -238,11 +263,52 @@ export default function StrategyDetailPage() {
       });
       setSelectedIndex(0);
 
-    } catch {
-      // MVP
+    } catch (err) {
+      console.error("Backtest error:", err);
     } finally {
       setTesting(false);
     }
+  };
+
+  const handleBacktest = () => {
+    if (!strategy) return;
+    const tf = strategy.parsed_strategy?.timeframe || "1h";
+    const days = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000);
+
+    // 타임프레임에 맞지 않는 기간이면 자동 조정
+    const limits: Record<string, { max: number; rec: number }> = {
+      "1m": { max: 30, rec: 14 }, "3m": { max: 60, rec: 30 }, "5m": { max: 90, rec: 30 },
+      "15m": { max: 180, rec: 90 }, "30m": { max: 365, rec: 180 },
+      "1h": { max: 730, rec: 365 }, "4h": { max: 1095, rec: 365 }, "1d": { max: 1825, rec: 730 },
+    };
+    const limit = limits[tf];
+    if (limit && days > limit.max) {
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - limit.rec);
+      setStartDate(start.toISOString().split("T")[0]);
+      setEndDate(end.toISOString().split("T")[0]);
+      alert(
+        language === "ko"
+          ? `${tf} 봉의 추천 기간은 최대 ${limit.max}일입니다. ${limit.rec}일로 자동 조정됩니다.`
+          : `Recommended max period for ${tf} candles is ${limit.max} days. Auto-adjusted to ${limit.rec} days.`
+      );
+      executeBacktest(start.toISOString().split("T")[0], end.toISOString().split("T")[0]);
+      return;
+    }
+    executeBacktest();
+  };
+
+  const handlePeriodConfirm = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    const newStart = start.toISOString().split("T")[0];
+    const newEnd = end.toISOString().split("T")[0];
+    setStartDate(newStart);
+    setEndDate(newEnd);
+    setShowPeriodModal(false);
+    executeBacktest(newStart, newEnd);
   };
 
   // 현재 화면에 띄워진(선택된) 전략 컨텍스트
@@ -379,7 +445,12 @@ export default function StrategyDetailPage() {
                   disabled={testing}
                   className="px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
                 >
-                  {testing ? t("sd.running", language) : t("sd.runBacktest", language)}
+                  {testing ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {t("sd.running", language)}
+                      </span>
+                    ) : t("sd.runBacktest", language)}
                 </button>
               </div>
             </div>
@@ -400,7 +471,10 @@ export default function StrategyDetailPage() {
                           : "bg-[#1E293B] text-[#94A3B8] border-[#1E293B] hover:bg-[#1E293B]/80 hover:text-white"
                         }`}
                     >
-                      {idx === 0 ? t("sd.latestRun", language) : `${t("sd.previousRun", language)} ${idx}`}
+                      {item.result === null
+                        ? (language === "ko" ? "수정됨" : "Modified")
+                        : idx === 0 ? t("sd.latestRun", language) : `${t("sd.previousRun", language)} ${idx}`
+                      }
                       <span className="ml-2 text-[10px] opacity-60 font-mono">
                         {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -438,7 +512,11 @@ export default function StrategyDetailPage() {
                     </button>
                   </div>
 
-                  {history[selectedIndex].result.equity_curve && history[selectedIndex].result.equity_curve.length > 0 ? (
+                  {!history[selectedIndex]?.result ? (
+                    <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] p-6 text-center text-sm text-[#475569]">
+                      {language === "ko" ? "전략이 수정되었습니다. 백테스트를 실행하여 결과를 확인하세요." : "Strategy modified. Run backtest to see results."}
+                    </div>
+                  ) : history[selectedIndex].result.equity_curve && history[selectedIndex].result.equity_curve.length > 0 ? (
                     <BacktestChart equityCurve={history[selectedIndex].result.equity_curve} metrics={history[selectedIndex].result.metrics} tradeLog={history[selectedIndex].result.trade_log} actualPeriod={history[selectedIndex].result.actual_period} />
                   ) : (
                     <BacktestResult result={history[selectedIndex].result} />
@@ -447,12 +525,24 @@ export default function StrategyDetailPage() {
                   {/* AI 요약 분석 리포트 카드 (백테스트 실행 시 생성, 저장된 것만 표시) */}
                   <BacktestSummary aiSummary={history[selectedIndex].result.ai_summary} />
 
-                  <TradeLogTable trades={history[selectedIndex].result.trade_log} />
+                  {history[selectedIndex]?.result?.trade_log && (
+                    <TradeLogTable trades={history[selectedIndex].result.trade_log} />
+                  )}
                 </div>
               )}
             </div>
           )}
         </main>
+
+        {/* 타임프레임-기간 검증 모달 */}
+        {showPeriodModal && strategy && (
+          <TimeframePeriodModal
+            timeframe={strategy.parsed_strategy.timeframe || "1h"}
+            currentDays={Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000)}
+            onConfirm={handlePeriodConfirm}
+            onCancel={() => setShowPeriodModal(false)}
+          />
+        )}
 
         {/* 가져오기 모달 */}
         {showImportModal && (
@@ -573,7 +663,7 @@ export default function StrategyDetailPage() {
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-[#94A3B8]">
                       <span>{item.startDate.substring(5)} ~ {item.endDate.substring(5)}</span>
-                      {item.result.metrics?.total_return !== undefined && (
+                      {item.result?.metrics?.total_return !== undefined && (
                         <span className={`${item.result.metrics.total_return >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
                           {item.result.metrics.total_return > 0 ? "+" : ""}{item.result.metrics.total_return}%
                         </span>
@@ -642,11 +732,76 @@ export default function StrategyDetailPage() {
                     disabled={testing}
                     className="px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
                   >
-                    {testing ? t("sd.running", language) : t("sd.runBacktest", language)}
+                    {testing ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {t("sd.running", language)}
+                      </span>
+                    ) : t("sd.runBacktest", language)}
                   </button>
                 </div>
               </div>
             </div>
+
+            {/* Phase 2: Optimize + Walk-Forward + Mint */}
+            {currentViewStrategy && (
+              <div className="space-y-2">
+                <div className="flex gap-2 flex-wrap">
+                  <div className="flex-1 min-w-[120px] relative group">
+                    <button
+                      onClick={() => setShowOptimizeModal(true)}
+                      className="w-full py-2 text-xs font-semibold rounded-lg bg-[#0F172A] text-[#F59E0B] border border-[#F59E0B30] cursor-pointer hover:bg-[#F59E0B10] transition"
+                    >
+                      {t("opt.title", language)} <span className="opacity-50 ml-1">?</span>
+                    </button>
+                    <div className="absolute left-full top-0 ml-2 w-64 p-3 rounded-lg bg-[#0F172A] border border-[#22D3EE30] text-[11px] text-[#94A3B8] opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[9999] shadow-2xl leading-relaxed">
+                      <p className="font-bold text-[#F59E0B] mb-1">{t("help.optTitle", language)}</p>
+                      <p>{t("help.optDesc", language)}</p>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-[120px] relative group">
+                    <WalkForwardSection strategy={currentViewStrategy} />
+                    <div className="absolute left-full top-0 ml-2 w-64 p-3 rounded-lg bg-[#0F172A] border border-[#22D3EE30] text-[11px] text-[#94A3B8] opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[9999] shadow-2xl leading-relaxed">
+                      <p className="font-bold text-[#22D3EE] mb-1">{t("help.wfTitle", language)}</p>
+                      <p>{t("help.wfDesc", language)}</p>
+                    </div>
+                  </div>
+                  <MintNFTButton
+                    strategyId={id}
+                    strategy={currentViewStrategy}
+                    status={
+                      // 히스토리에서 수정된 버전이거나 이전 버전을 보고 있으면 draft
+                      (history.length > 0 && history[selectedIndex]?.result === null)
+                        ? "draft"
+                        : (currentViewStrategy === strategy?.parsed_strategy)
+                          ? strategy?.status
+                          : "draft"
+                    }
+                  />
+                  {strategy?.status === "verified" && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const result = await publishToMarketplace(id);
+                          const txInfo = result.blockchain?.tx_signature
+                            ? `\nTX: ${result.blockchain.tx_signature.slice(0, 20)}...`
+                            : "";
+                          alert("마켓플레이스에 등록되었습니다!" + txInfo);
+                        } catch (e) {
+                          alert(`등록 실패: ${e instanceof Error ? e.message : "알 수 없는 오류"}`);
+                        }
+                      }}
+                      className="w-full py-2.5 text-xs font-semibold rounded-lg bg-[#9945FF]/20 text-[#9945FF] border border-[#9945FF]/30 hover:bg-[#9945FF]/30 transition"
+                    >
+                      🏪 마켓플레이스에 등록
+                    </button>
+                  )}
+                </div>
+                <Link href="/learn" className="text-[10px] text-[#475569] hover:text-[#22D3EE] transition">
+                  {t("help.learnMore", language)}
+                </Link>
+              </div>
+            )}
 
             {/* 백테스트 결과 */}
             {history.length > 0 && (
@@ -666,16 +821,24 @@ export default function StrategyDetailPage() {
                       </button>
                     </div>
 
-                    {history[selectedIndex].result.equity_curve && history[selectedIndex].result.equity_curve.length > 0 ? (
+                    {!history[selectedIndex]?.result ? (
+                      <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] p-6 text-center text-sm text-[#475569]">
+                        {language === "ko" ? "전략이 수정되었습니다. 백테스트를 실행하여 결과를 확인하세요." : "Strategy modified. Run backtest to see results."}
+                      </div>
+                    ) : history[selectedIndex].result.equity_curve && history[selectedIndex].result.equity_curve.length > 0 ? (
                       <BacktestChart equityCurve={history[selectedIndex].result.equity_curve} metrics={history[selectedIndex].result.metrics} tradeLog={history[selectedIndex].result.trade_log} actualPeriod={history[selectedIndex].result.actual_period} />
                     ) : (
                       <BacktestResult result={history[selectedIndex].result} />
                     )}
 
                     {/* AI 요약 분석 리포트 카드 (백테스트 실행 시 생성, 저장된 것만 표시) */}
-                    <BacktestSummary aiSummary={history[selectedIndex].result.ai_summary} />
+                    {history[selectedIndex]?.result && (
+                      <BacktestSummary aiSummary={history[selectedIndex].result.ai_summary} />
+                    )}
 
-                    <TradeLogTable trades={history[selectedIndex].result.trade_log} />
+                    {history[selectedIndex]?.result?.trade_log && (
+                      <TradeLogTable trades={history[selectedIndex].result.trade_log} />
+                    )}
                   </div>
                 )}
               </div>
@@ -693,11 +856,47 @@ export default function StrategyDetailPage() {
               strategyId={strategy.id}
               strategy={currentViewStrategy}
               onStrategyUpdate={handleStrategyUpdate}
+              onOptimizeRanges={(ranges, objective) => {
+                // AI 추천 범위로 OptimizeModal 열기
+                setShowOptimizeModal(true);
+                // OptimizeModal의 ranges를 AI 추천값으로 덮어쓸 수 있지만
+                // 현재는 모달을 열어주는 것만으로 충분 (사용자가 확인 후 실행)
+              }}
               investmentAmount={investmentAmount}
             />
           )}
         </aside>
       </div>
+
+      {/* 최적화 모달 */}
+      {showOptimizeModal && currentViewStrategy && (
+        <OptimizeModal
+          strategy={currentViewStrategy}
+          onClose={() => setShowOptimizeModal(false)}
+          onApply={(params) => {
+            if (!currentViewStrategy) return;
+            const updated = { ...currentViewStrategy };
+            // dot-notation 키 처리: "exit.take_profit.value" → nested update
+            for (const [key, value] of Object.entries(params)) {
+              if (key === "leverage") {
+                updated.leverage = value as number;
+              } else if (key === "exit.take_profit.value") {
+                updated.exit = {
+                  ...updated.exit,
+                  take_profit: { ...updated.exit.take_profit, value: value as number },
+                };
+              } else if (key === "exit.stop_loss.value") {
+                updated.exit = {
+                  ...updated.exit,
+                  stop_loss: { ...updated.exit.stop_loss, value: value as number },
+                };
+              }
+            }
+            handleStrategyUpdate(updated);
+            setShowOptimizeModal(false);
+          }}
+        />
+      )}
 
       {/* 전략 수동 편집(JSON) 모달 */}
       {showEditModal && (

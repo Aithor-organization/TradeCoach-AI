@@ -160,6 +160,25 @@ export async function updateStrategy(id: string, updates: Record<string, unknown
   });
 }
 
+export async function publishToMarketplace(strategyId: string) {
+  return fetcher<{
+    strategy_id: string;
+    is_public: boolean;
+    message: string;
+    blockchain?: { tx_signature?: string; explorer_url?: string; error?: string };
+  }>(
+    `/strategy/${strategyId}/publish`,
+    { method: "POST" },
+  );
+}
+
+export async function unpublishFromMarketplace(strategyId: string) {
+  return fetcher<{ strategy_id: string; is_public: boolean; message: string }>(
+    `/strategy/${strategyId}/unpublish`,
+    { method: "POST" },
+  );
+}
+
 export async function forkStrategy(id: string, name?: string) {
   return fetcher<{ id: string; name: string; parsed_strategy: Record<string, unknown> }>(`/strategy/fork/${id}`, {
     method: "POST",
@@ -187,6 +206,10 @@ export async function runBacktest(
       ...(startDate ? { start_date: startDate } : {}),
       ...(endDate ? { end_date: endDate } : {}),
       ...(language ? { language } : {}),
+      // 선물 자동 감지: leverage > 1 또는 market_type이 futures이면
+      market_type: parsedStrategy?.market_type === "futures" ||
+        (parsedStrategy?.leverage && Number(parsedStrategy.leverage) > 1)
+          ? "futures" : "spot",
     }),
   });
 }
@@ -253,5 +276,65 @@ export async function registerWithEmail(name: string, email: string) {
   return fetcher<{ access_token: string; user_id: string; name: string; email: string }>("/auth/register", {
     method: "POST",
     body: JSON.stringify({ name, email }),
+  });
+}
+
+// 최적화 API (Phase 2)
+export interface OptimizeResult {
+  params: Record<string, number>;
+  metrics: Record<string, number>;
+  rank: number;
+}
+
+export async function runOptimization(
+  parsedStrategy: Record<string, unknown>,
+  paramRanges: Record<string, number[]>,
+  objective = "sharpe",
+  maxCombinations = 100,
+) {
+  return fetcher<{ results: OptimizeResult[]; total_tested: number; objective: string }>("/optimize/grid", {
+    method: "POST",
+    body: JSON.stringify({
+      parsed_strategy: parsedStrategy,
+      param_ranges: paramRanges,
+      objective,
+      max_combinations: maxCombinations,
+    }),
+  });
+}
+
+export interface WalkForwardWindow {
+  window: number;
+  is_metrics: Record<string, number>;
+  oos_metrics: Record<string, number>;
+  best_params: Record<string, number>;
+  ratio: number;
+}
+
+export interface WalkForwardResult {
+  windows: WalkForwardWindow[];
+  avg_ratio: number;
+  passed: boolean;
+  recommended_params: Record<string, number>;
+}
+
+export async function runWalkForward(
+  parsedStrategy: Record<string, unknown>,
+  paramRanges?: Record<string, number[]>,
+  inSampleDays = 60,
+  outSampleDays = 30,
+  windows = 3,
+  days = 180,
+) {
+  return fetcher<WalkForwardResult>("/optimize/walk-forward", {
+    method: "POST",
+    body: JSON.stringify({
+      parsed_strategy: parsedStrategy,
+      param_ranges: paramRanges,
+      in_sample_days: inSampleDays,
+      out_sample_days: outSampleDays,
+      windows,
+      days,
+    }),
   });
 }

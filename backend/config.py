@@ -31,6 +31,18 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:3000"
 
+    # Solana
+    solana_rpc_url: str = "https://api.devnet.solana.com"
+    solana_network: str = "devnet"
+    helius_api_key: str = ""
+    solana_keypair_path: str = "~/.config/solana/id.json"
+
+    # StrategyVault Program IDs (Devnet)
+    program_strategy_registry: str = "6EuhmRPHqN4r6SoP8anEpm2ZmVuQoHLLWre4zEPdc6Bo"
+    program_signal_recorder: str = "HydMVYPxrrCkFAnwaZLKeYzPoEvF1qSSDYnX1fSC2J89"
+    program_strategy_marketplace: str = "BKmM7ZHuKmg6f5FQbv6rTF44sJkYNR2UsSbvRFGgnmU1"
+    program_performance_verifier: str = "J3LeviD4zd9y5izVHLLwgopvEM82A9aUdgXi29wioNCL"
+
     class Config:
         env_file = ".env"
 

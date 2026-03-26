@@ -75,6 +75,123 @@ async def list_strategies(
         raise HTTPException(status_code=500, detail="전략 목록을 불러올 수 없습니다.")
 
 
+@router.get("/public")
+async def list_public_strategies():
+    """공개 전략 목록 (마켓플레이스용, 인증 불필요)"""
+    import httpx
+    from services.supabase_client import _rest_url, _headers, _is_available
+
+    if not _is_available():
+        return {"strategies": []}
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                _rest_url("strategies"),
+                headers=_headers(),
+                params={
+                    "select": "id,name,parsed_strategy,created_at",
+                    "is_public": "eq.true",
+                    "order": "created_at.desc",
+                    "limit": "50",
+                },
+            )
+            strategies = res.json() if res.status_code == 200 else []
+
+            # 온체인 정보 추가
+            for s in strategies:
+                onchain_res = await client.get(
+                    _rest_url("onchain_strategies"),
+                    headers=_headers(),
+                    params={"strategy_id": f"eq.{s['id']}", "select": "asset_id,strategy_hash", "limit": "1"},
+                )
+                onchain_data = onchain_res.json() if onchain_res.status_code == 200 else []
+                s["onchain"] = onchain_data[0] if onchain_data else None
+
+        return {"strategies": strategies}
+    except Exception as e:
+        logger.error(f"공개 전략 목록 실패: {e}", exc_info=True)
+        return {"strategies": []}
+
+
+@router.post("/{strategy_id}/publish")
+async def publish_to_marketplace(
+    strategy_id: str,
+    user_id: str | None = Depends(get_current_user_id),
+):
+    """전략을 마켓플레이스에 공개 등록 (DB 공개 + Anchor 블록체인 등록)"""
+    from services.supabase_client import update_strategy_by_id, get_strategy_by_id
+
+    try:
+        # 1. 전략 정보 조회
+        strategy = await get_strategy_by_id(strategy_id)
+        if not strategy:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+
+        # 2. DB에서 is_public=true로 설정 (컬럼 없으면 스킵)
+        db_result = None
+        try:
+            db_result = await update_strategy_by_id(strategy_id, {"is_public": True})
+        except Exception as e:
+            logger.warning(f"is_public 업데이트 스킵 (컬럼 미존재?): {e}")
+
+        # 3. Anchor 블록체인에 전략 등록
+        anchor_result = None
+        try:
+            from services.blockchain.strategy_registry_client import register_strategy_onchain
+            parsed = strategy.get("parsed_strategy", {})
+            anchor_result = await register_strategy_onchain(
+                strategy_id=strategy_id,
+                strategy_name=strategy.get("name", "Unknown"),
+                strategy_data={
+                    "description": parsed.get("description", str(parsed.get("entry", ""))),
+                    "market": "BinanceFutures",
+                    "time_frame": parsed.get("timeframe", "H4"),
+                    "symbols": [parsed.get("target_pair", "BTCUSDT")],
+                    "backtest": {},
+                    "price_lamports": 100_000_000,
+                    "rent_lamports_per_day": 10_000_000,
+                },
+            )
+        except Exception as e:
+            logger.warning(f"Anchor 블록체인 등록 실패 (비치명적): {e}")
+            anchor_result = {"error": str(e)}
+
+        return {
+            "strategy_id": strategy_id,
+            "is_public": db_result is not None,
+            "blockchain": anchor_result,
+            "message": "마켓플레이스에 등록되었습니다" + (
+                f" (TX: {anchor_result.get('tx_signature', 'N/A')})" if anchor_result and not anchor_result.get("error") else ""
+            ),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"마켓플레이스 등록 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{strategy_id}/unpublish")
+async def unpublish_from_marketplace(
+    strategy_id: str,
+    user_id: str | None = Depends(get_current_user_id),
+):
+    """전략을 마켓플레이스에서 비공개 전환"""
+    from services.supabase_client import update_strategy_by_id
+
+    try:
+        result = await update_strategy_by_id(strategy_id, {"is_public": False})
+        if not result:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        return {"strategy_id": strategy_id, "is_public": False, "message": "마켓플레이스에서 제거되었습니다"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"마켓플레이스 해제 실패: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{strategy_id}")
 async def get_strategy(
     strategy_id: str,
@@ -142,7 +259,11 @@ async def update_strategy(
     try:
         if user_id:
             await _verify_strategy_owner(strategy_id, user_id)
-        updated = await update_strategy_by_id(strategy_id, body.model_dump(exclude_none=True))
+        updates = body.model_dump(exclude_none=True)
+        # 전략 내용이 수정되면 status를 draft로 리셋 (재민팅 필요)
+        if "parsed_strategy" in updates and "status" not in updates:
+            updates["status"] = "draft"
+        updated = await update_strategy_by_id(strategy_id, updates)
         if not updated:
             raise HTTPException(status_code=404, detail="Strategy not found")
         return updated
