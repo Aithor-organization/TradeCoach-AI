@@ -36,7 +36,7 @@ _server_keypair: Optional[Keypair] = None
 
 
 def load_server_keypair() -> Optional[Keypair]:
-    """서버 키페어 로드 (~/.config/solana/id.json)"""
+    """서버 키페어 로드 (환경변수 우선, 파일 폴백)"""
     global _server_keypair
     if _server_keypair:
         return _server_keypair
@@ -45,18 +45,30 @@ def load_server_keypair() -> Optional[Keypair]:
         logger.warning("solana/solders 패키지 미설치 — 온체인 기록 비활성화")
         return None
 
+    # 1순위: 환경변수 SOLANA_KEYPAIR_JSON (Railway 등 클라우드 배포용)
+    keypair_json = os.getenv("SOLANA_KEYPAIR_JSON")
+    if keypair_json:
+        try:
+            secret = json.loads(keypair_json)
+            _server_keypair = Keypair.from_bytes(bytes(secret))
+            logger.info(f"서버 키페어 로드 (환경변수): {_server_keypair.pubkey()}")
+            return _server_keypair
+        except Exception as e:
+            logger.error(f"환경변수 키페어 파싱 실패: {e}")
+
+    # 2순위: 파일 경로 (로컬 개발용)
     keypair_path = os.getenv("SOLANA_KEYPAIR_PATH", "~/.config/solana/id.json")
     expanded = Path(keypair_path).expanduser()
 
     if not expanded.exists():
-        logger.warning(f"키페어 파일 미존재: {expanded}")
+        logger.warning(f"키페어 미설정 (환경변수 SOLANA_KEYPAIR_JSON 또는 파일 {expanded})")
         return None
 
     try:
         with open(expanded) as f:
             secret = json.load(f)
         _server_keypair = Keypair.from_bytes(bytes(secret))
-        logger.info(f"서버 키페어 로드: {_server_keypair.pubkey()}")
+        logger.info(f"서버 키페어 로드 (파일): {_server_keypair.pubkey()}")
         return _server_keypair
     except Exception as e:
         logger.error(f"키페어 로드 실패: {e}")
