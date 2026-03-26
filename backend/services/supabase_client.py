@@ -158,25 +158,25 @@ async def get_or_create_user_by_email(email: str, name: str) -> Optional[dict]:
 async def get_strategies(user_id: Optional[str] = None) -> list:
     if not _is_available():
         return get_example_strategies()
+    if not user_id:
+        return []
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            params: dict = {"select": "*", "order": "created_at.desc", "limit": "50"}
-            if user_id:
-                # 로그인 사용자: 본인 전략만 조회
-                params["user_id"] = f"eq.{user_id}"
+            params: dict = {
+                "select": "*",
+                "order": "created_at.desc",
+                "limit": "50",
+                "user_id": f"eq.{user_id}",
+            }
             res = await client.get(
                 _rest_url("strategies"),
                 headers=_headers(),
                 params=params,
             )
             if res.status_code == 200:
-                db_strategies = res.json()
-                # 로그인 사용자: 본인 전략만 반환, 비로그인: 예시 포함
-                if user_id:
-                    return db_strategies
-                return db_strategies + get_example_strategies()
+                return res.json()
             logger.error(f"get_strategies 실패: {res.status_code} {res.text}")
-            return get_example_strategies()
+            return []
     except Exception as e:
         logger.warning(f"get_strategies DB 연결 실패: {e}")
         return get_example_strategies()
