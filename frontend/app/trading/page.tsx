@@ -493,7 +493,7 @@ export default function TradingPage() {
                       isActive={isActive}
                       isLoading={isLoading}
                       defaultSymbol="SOLUSDT"
-                      defaultLeverage={selectedStrategy?.parsed_strategy?.futures?.leverage || selectedStrategy?.parsed_strategy?.leverage || 10}
+                      defaultLeverage={(selectedStrategy?.parsed_strategy as any)?.futures?.leverage || selectedStrategy?.parsed_strategy?.leverage || 10}
                       defaultBalance={1000}
                     />
                     <PositionCard
