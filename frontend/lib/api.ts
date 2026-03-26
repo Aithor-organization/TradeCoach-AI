@@ -286,13 +286,31 @@ export interface OptimizeResult {
   rank: number;
 }
 
+// 백그라운드 작업 폴링 헬퍼
+async function pollJob<T>(jobId: string, intervalMs = 2000, maxAttempts = 150): Promise<T> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const job = await fetcher<{ job_id: string; status: string; result?: T; error?: string }>(
+      `/optimize/job/${jobId}`
+    );
+    if (job.status === "completed" && job.result) {
+      return job.result;
+    }
+    if (job.status === "failed") {
+      throw new Error(job.error || "작업 실패");
+    }
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  throw new Error("작업 시간 초과 (5분)");
+}
+
 export async function runOptimization(
   parsedStrategy: Record<string, unknown>,
   paramRanges: Record<string, number[]>,
   objective = "sharpe",
   maxCombinations = 100,
 ) {
-  return fetcher<{ results: OptimizeResult[]; total_tested: number; objective: string }>("/optimize/grid", {
+  // 작업 시작 → job_id 수신
+  const { job_id } = await fetcher<{ job_id: string; status: string }>("/optimize/grid", {
     method: "POST",
     body: JSON.stringify({
       parsed_strategy: parsedStrategy,
@@ -301,6 +319,8 @@ export async function runOptimization(
       max_combinations: maxCombinations,
     }),
   });
+  // 폴링으로 결과 대기
+  return pollJob<{ results: OptimizeResult[]; total_tested: number; objective: string }>(job_id);
 }
 
 export interface WalkForwardWindow {
@@ -326,7 +346,8 @@ export async function runWalkForward(
   windows = 3,
   days = 180,
 ) {
-  return fetcher<WalkForwardResult>("/optimize/walk-forward", {
+  // 작업 시작 → job_id 수신
+  const { job_id } = await fetcher<{ job_id: string; status: string }>("/optimize/walk-forward", {
     method: "POST",
     body: JSON.stringify({
       parsed_strategy: parsedStrategy,
@@ -337,4 +358,6 @@ export async function runWalkForward(
       days,
     }),
   });
+  // 폴링으로 결과 대기 (walk-forward는 더 오래 걸릴 수 있으므로 3초 간격)
+  return pollJob<WalkForwardResult>(job_id, 3000, 200);
 }
