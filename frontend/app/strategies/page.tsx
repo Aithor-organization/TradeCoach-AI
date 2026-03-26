@@ -65,12 +65,21 @@ export default function StrategiesPage() {
           <span className="text-[#475569]">/</span>
           <span className="text-sm text-[#94A3B8]">{t("sp.breadcrumb", language)}</span>
         </div>
-        <button
-          onClick={() => router.push("/chat")}
-          className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 transition cursor-pointer"
-        >
-          {t("sp.newStrategy", language)}
-        </button>
+        <div className="flex items-center gap-4">
+          <nav className="hidden sm:flex items-center gap-3 text-xs text-[#94A3B8]">
+            <Link href="/chat" className="hover:text-white transition">Chat</Link>
+            <Link href="/strategies" className="text-[#22D3EE]">Strategies</Link>
+            <Link href="/trading" className="hover:text-white transition">{t("nav.trading", language)}</Link>
+            <Link href="/marketplace" className="hover:text-white transition">{t("nav.marketplace", language)}</Link>
+            <Link href="/learn" className="hover:text-white transition">{t("nav.learn", language)}</Link>
+          </nav>
+          <button
+            onClick={() => router.push("/chat")}
+            className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 transition cursor-pointer"
+          >
+            {t("sp.newStrategy", language)}
+          </button>
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">

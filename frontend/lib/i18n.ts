@@ -32,6 +32,7 @@ const translations = {
     "nav.howItWorks": "How It Works",
     "nav.strategies": "Strategies",
     "nav.pricing": "Pricing",
+    "nav.learn": "Learn",
 
     // 전략
     "strategy.newChat": "새 대화",
@@ -420,6 +421,7 @@ const translations = {
     "nav.howItWorks": "How It Works",
     "nav.strategies": "Strategies",
     "nav.pricing": "Pricing",
+    "nav.learn": "Learn",
 
     // 전략
     "strategy.newChat": "New Chat",

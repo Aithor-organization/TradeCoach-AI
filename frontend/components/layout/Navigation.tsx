@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { labelKey: "nav.strategies" as const, href: "/strategies" },
   { labelKey: "nav.trading" as const, href: "/trading" },
   { labelKey: "nav.marketplace" as const, href: "/marketplace" },
+  { labelKey: "nav.learn" as const, href: "/learn" },
   { labelKey: "nav.pricing" as const, href: "#pricing" },
 ];
 

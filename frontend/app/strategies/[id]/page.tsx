@@ -8,7 +8,7 @@ import OptimizeModal from "@/components/strategy/OptimizeModal";
 import WalkForwardSection from "@/components/strategy/WalkForwardResult";
 import MintNFTButton from "@/components/strategy/MintNFTButton";
 import TimeframePeriodModal, { isPeriodAppropriate } from "@/components/strategy/TimeframePeriodModal";
-import { getStrategy, runBacktest, updateStrategy, forkStrategy, getBacktestHistory, deleteBacktestHistory, deleteStrategy, publishToMarketplace } from "@/lib/api";
+import { getStrategy, runBacktest, updateStrategy, forkStrategy, getBacktestHistory, deleteBacktestHistory, deleteStrategy } from "@/lib/api";
 import StrategyCard from "@/components/chat/StrategyCard";
 import BacktestChart from "@/components/chat/BacktestChart";
 import BacktestResult from "@/components/chat/BacktestResult";
@@ -766,35 +766,20 @@ export default function StrategyDetailPage() {
                       <p>{t("help.wfDesc", language)}</p>
                     </div>
                   </div>
-                  <MintNFTButton
-                    strategyId={id}
-                    strategy={currentViewStrategy}
-                    status={
-                      // 히스토리에서 수정된 버전이거나 이전 버전을 보고 있으면 draft
-                      (history.length > 0 && history[selectedIndex]?.result === null)
-                        ? "draft"
-                        : (currentViewStrategy === strategy?.parsed_strategy)
-                          ? strategy?.status
-                          : "draft"
-                    }
-                  />
-                  {strategy?.status === "verified" && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          const result = await publishToMarketplace(id);
-                          const txInfo = result.blockchain?.tx_signature
-                            ? `\nTX: ${result.blockchain.tx_signature.slice(0, 20)}...`
-                            : "";
-                          alert("마켓플레이스에 등록되었습니다!" + txInfo);
-                        } catch (e) {
-                          alert(`등록 실패: ${e instanceof Error ? e.message : "알 수 없는 오류"}`);
-                        }
-                      }}
-                      className="w-full py-2.5 text-xs font-semibold rounded-lg bg-[#9945FF]/20 text-[#9945FF] border border-[#9945FF]/30 hover:bg-[#9945FF]/30 transition"
-                    >
-                      🏪 마켓플레이스에 등록
-                    </button>
+                  {/* 이미 민팅된 전략이면 민트 버튼 숨김 */}
+                  {strategy?.status !== "verified" && (
+                    <MintNFTButton
+                      strategyId={id}
+                      strategy={currentViewStrategy}
+                      status={
+                        // 히스토리에서 수정된 버전이거나 이전 버전을 보고 있으면 draft
+                        (history.length > 0 && history[selectedIndex]?.result === null)
+                          ? "draft"
+                          : (currentViewStrategy === strategy?.parsed_strategy)
+                            ? strategy?.status
+                            : "draft"
+                      }
+                    />
                   )}
                 </div>
                 <Link href="/learn" className="text-[10px] text-[#475569] hover:text-[#22D3EE] transition">
