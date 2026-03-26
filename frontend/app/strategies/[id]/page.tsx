@@ -133,6 +133,10 @@ export default function StrategyDetailPage() {
   // 채팅으로 전략이 수정되었는지 추적 (최신 전략 우선 표시용)
   const [strategyUpdatedByChat, setStrategyUpdatedByChat] = useState(false);
 
+  // 태블릿/모바일용 패널 토글 상태
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const [showChatPanel, setShowChatPanel] = useState(false);
+
   // AI가 전략을 수정하면 즉시 페이지 반영 + DB 업데이트 + 히스토리 추가
   const handleStrategyUpdate = useCallback(async (updated: ParsedStrategy) => {
     setStrategy(prev => {
@@ -353,8 +357,8 @@ export default function StrategyDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center text-[#475569]">
-        {t("sd.loading", language)}
+      <div className="min-h-screen bg-[#0A0F1C] flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-2 border-[#22D3EE] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -625,8 +629,12 @@ export default function StrategyDetailPage() {
 
       {/* 메인 3-Column 레이아웃 */}
       <div className="flex-1 flex overflow-hidden">
-        {/* 왼쪽 1: 백테스트 기록 사이드바 */}
-        <aside className="w-64 flex-shrink-0 border-r border-[#1E293B] bg-[#0F172A] overflow-y-auto hidden md:flex flex-col relative text-white">
+        {/* 왼쪽 1: 백테스트 기록 사이드바 (md 이상에서 표시, 태블릿/모바일에서는 오버레이) */}
+        {showHistoryPanel && (
+          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setShowHistoryPanel(false)} />
+        )}
+        <aside className={`w-64 flex-shrink-0 border-r border-[#1E293B] bg-[#0F172A] overflow-y-auto flex-col relative text-white
+          ${showHistoryPanel ? 'fixed inset-y-14 left-0 z-50 flex md:relative md:inset-auto md:z-auto' : 'hidden md:flex'}`}>
           <div className="p-4 border-b border-[#1E293B] sticky top-0 bg-[#0F172A]/90 backdrop-blur-sm z-10 flex flex-col gap-3">
             <Link
               href="/strategies"
@@ -754,14 +762,14 @@ export default function StrategyDetailPage() {
                     >
                       {t("opt.title", language)} <span className="opacity-50 ml-1">?</span>
                     </button>
-                    <div className="absolute left-full top-0 ml-2 w-64 p-3 rounded-lg bg-[#0F172A] border border-[#22D3EE30] text-[11px] text-[#94A3B8] opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[9999] shadow-2xl leading-relaxed">
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg bg-[#0F172A] border border-[#22D3EE30] text-[11px] text-[#94A3B8] opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[9999] shadow-2xl leading-relaxed">
                       <p className="font-bold text-[#F59E0B] mb-1">{t("help.optTitle", language)}</p>
                       <p>{t("help.optDesc", language)}</p>
                     </div>
                   </div>
                   <div className="flex-1 min-w-[120px] relative group">
                     <WalkForwardSection strategy={currentViewStrategy} />
-                    <div className="absolute left-full top-0 ml-2 w-64 p-3 rounded-lg bg-[#0F172A] border border-[#22D3EE30] text-[11px] text-[#94A3B8] opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[9999] shadow-2xl leading-relaxed">
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg bg-[#0F172A] border border-[#22D3EE30] text-[11px] text-[#94A3B8] opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-[9999] shadow-2xl leading-relaxed">
                       <p className="font-bold text-[#22D3EE] mb-1">{t("help.wfTitle", language)}</p>
                       <p>{t("help.wfDesc", language)}</p>
                     </div>
@@ -831,8 +839,12 @@ export default function StrategyDetailPage() {
           </div>
         </main>
 
-        {/* 오른쪽 3: 방어/공격 모드 채팅 (AI 코칭) */}
-        <aside className="w-96 flex-shrink-0 bg-[#0A0F1C] border-l border-[#1E293B] hidden lg:flex flex-col relative">
+        {/* 오른쪽 3: 방어/공격 모드 채팅 (AI 코칭) - lg 이상에서 표시, 태블릿/모바일에서는 오버레이 */}
+        {showChatPanel && (
+          <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowChatPanel(false)} />
+        )}
+        <aside className={`w-96 flex-shrink-0 bg-[#0A0F1C] border-l border-[#1E293B] flex-col relative
+          ${showChatPanel ? 'fixed inset-y-14 right-0 z-50 flex lg:relative lg:inset-auto lg:z-auto' : 'hidden lg:flex'}`}>
           {!isExample && (
             <div className="absolute top-0 right-full w-4 h-full bg-gradient-to-r from-transparent to-[#0A0F1C]/50 pointer-events-none z-10" />
           )}
@@ -851,6 +863,36 @@ export default function StrategyDetailPage() {
             />
           )}
         </aside>
+
+        {/* 태블릿/모바일 전용 플로팅 토글 버튼 */}
+        <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-30 lg:hidden">
+          {/* AI 코칭 패널 토글 (lg 미만에서 표시) */}
+          <button
+            onClick={() => { setShowChatPanel(!showChatPanel); setShowHistoryPanel(false); }}
+            className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${
+              showChatPanel ? 'bg-[#22D3EE] text-[#0A0F1C]' : 'bg-[#1E293B] text-[#22D3EE] border border-[#22D3EE30] hover:bg-[#22D3EE10]'
+            }`}
+            title="AI Coaching"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </button>
+        </div>
+        <div className="fixed bottom-6 left-6 flex flex-col gap-3 z-30 md:hidden">
+          {/* 백테스트 기록 패널 토글 (md 미만에서 표시) */}
+          <button
+            onClick={() => { setShowHistoryPanel(!showHistoryPanel); setShowChatPanel(false); }}
+            className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors ${
+              showHistoryPanel ? 'bg-[#22D3EE] text-[#0A0F1C]' : 'bg-[#1E293B] text-[#22D3EE] border border-[#22D3EE30] hover:bg-[#22D3EE10]'
+            }`}
+            title="Backtest History"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* 최적화 모달 */}

@@ -15,8 +15,8 @@ import type { ChatMessage, ChatResponse, ParsedStrategy } from "@/lib/types";
 export default function ChatPage() {
   return (
     <Suspense fallback={
-      <div className="h-screen flex items-center justify-center bg-[#0A0F1C] text-[#475569]">
-        Loading...
+      <div className="h-screen flex items-center justify-center bg-[#0A0F1C]">
+        <div className="animate-spin h-8 w-8 border-2 border-[#22D3EE] border-t-transparent rounded-full" />
       </div>
     }>
       <ChatPageInner />

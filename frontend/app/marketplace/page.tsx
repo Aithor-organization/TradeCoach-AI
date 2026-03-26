@@ -150,7 +150,9 @@ export default function MarketplacePage() {
 
         {/* 전략 목록 */}
         {loading ? (
-          <div className="text-center py-12 text-[#475569]">Loading...</div>
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin h-8 w-8 border-2 border-[#22D3EE] border-t-transparent rounded-full" />
+          </div>
         ) : filtered.length === 0 ? (
           <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] p-12 text-center space-y-4">
             <span className="text-4xl">🏪</span>
