@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthGuard from "@/components/common/AuthGuard";
-import { getStrategies, sendMessage, saveStrategy, deleteStrategy } from "@/lib/api";
-import type { Strategy, ChatResponse } from "@/lib/types";
+import { getStrategies, deleteStrategy } from "@/lib/api";
+import type { Strategy } from "@/lib/types";
 import TokenPrices from "@/components/market/TokenPrices";
 import Skeleton from "@/components/common/Skeleton";
 import OnboardingBanner from "@/components/common/OnboardingBanner";
@@ -20,11 +20,6 @@ export default function StrategiesPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("my");
 
-  // 새 전략 생성 모달 상태
-  const [showModal, setShowModal] = useState(false);
-  const [newStrategyText, setNewStrategyText] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
   const { language } = useLanguageStore();
 
   useEffect(() => {
@@ -54,37 +49,6 @@ export default function StrategiesPage() {
     }
   };
 
-  const handleCreateStrategy = async () => {
-    if (!newStrategyText.trim() || creating) return;
-    setCreating(true);
-    setCreateError("");
-
-    try {
-      const response = await sendMessage(newStrategyText.trim()) as ChatResponse;
-
-      if (!response.parsed_strategy) {
-        setCreateError(t("sp.parseFailed", language));
-        setCreating(false);
-        return;
-      }
-
-      const saved = await saveStrategy(
-        response.parsed_strategy.name || (language === "en" ? "New Strategy" : "새 전략"),
-        response.parsed_strategy as unknown as Record<string, unknown>,
-        newStrategyText.trim(),
-      ) as { id?: string };
-
-      if (saved?.id && saved.id !== "local-strategy") {
-        router.push(`/strategies/${saved.id}`);
-      } else {
-        setCreateError(t("sp.dbSaveFailed", language));
-        setCreating(false);
-      }
-    } catch (e) {
-      setCreateError(e instanceof Error ? e.message : t("sp.createFailed", language));
-      setCreating(false);
-    }
-  };
 
   return (
     <AuthGuard>
@@ -102,7 +66,7 @@ export default function StrategiesPage() {
           <span className="text-sm text-[#94A3B8]">{t("sp.breadcrumb", language)}</span>
         </div>
         <button
-          onClick={() => { setActiveTab("my"); setShowModal(true); }}
+          onClick={() => router.push("/chat")}
           className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 transition cursor-pointer"
         >
           {t("sp.newStrategy", language)}
@@ -180,7 +144,7 @@ export default function StrategiesPage() {
                   {t("sp.viewExamples", language)}
                 </button>
                 <button
-                  onClick={() => setShowModal(true)}
+                  onClick={() => router.push("/chat")}
                   className="px-5 py-3 rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] font-semibold hover:opacity-90 transition cursor-pointer"
                 >
                   {t("sp.createNew", language)}
@@ -231,55 +195,6 @@ export default function StrategiesPage() {
         )}
       </main>
 
-      {/* 새 전략 생성 모달 */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#1E293B] rounded-2xl border border-[#22D3EE20] w-full max-w-lg mx-4 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#0F172A]">
-              <h2 className="text-lg font-bold text-white">{t("sp.modalTitle", language)}</h2>
-              <button
-                onClick={() => { setShowModal(false); setCreateError(""); setNewStrategyText(""); }}
-                className="text-[#475569] hover:text-white transition cursor-pointer text-xl"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="px-6 py-5">
-              <p className="text-sm text-[#94A3B8] mb-4">
-                {t("sp.modalDesc", language)}
-              </p>
-              <textarea
-                value={newStrategyText}
-                onChange={e => setNewStrategyText(e.target.value)}
-                placeholder={t("sp.modalPlaceholder", language)}
-                className="w-full bg-[#0F172A] text-white text-sm rounded-lg px-4 py-3 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none resize-none placeholder-[#475569] min-h-[120px]"
-                rows={4}
-                disabled={creating}
-              />
-              {createError && (
-                <p className="mt-2 text-xs text-[#EF4444]">{createError}</p>
-              )}
-            </div>
-
-            <div className="flex gap-3 px-6 py-4 border-t border-[#0F172A]">
-              <button
-                onClick={() => { setShowModal(false); setCreateError(""); setNewStrategyText(""); }}
-                className="flex-1 py-3 text-sm font-semibold rounded-lg bg-[#0F172A] text-[#94A3B8] border border-[#22D3EE20] hover:border-[#22D3EE50] transition cursor-pointer"
-              >
-                {t("sp.cancel", language)}
-              </button>
-              <button
-                onClick={handleCreateStrategy}
-                disabled={creating || !newStrategyText.trim()}
-                className="flex-1 py-3 text-sm font-semibold rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
-              >
-                {creating ? t("sp.creating", language) : t("sp.createAndSave", language)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
     </AuthGuard>
   );
