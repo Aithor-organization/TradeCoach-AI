@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLanguageStore } from "@/stores/languageStore";
+import { useAuthStore } from "@/stores/authStore";
 import { t } from "@/lib/i18n";
 
 type PageKey = "chat" | "strategies" | "trading" | "marketplace" | "learn";
@@ -23,6 +24,7 @@ interface AppHeaderProps {
 
 export default function AppHeader({ activePage, rightSlot }: AppHeaderProps) {
   const { language } = useLanguageStore();
+  const { isAuthenticated, name, logout } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -56,6 +58,30 @@ export default function AppHeader({ activePage, rightSlot }: AppHeaderProps) {
         </nav>
 
         {rightSlot}
+
+        {/* 사용자 상태 */}
+        <div className="hidden sm:flex items-center gap-2 text-xs">
+          {isAuthenticated ? (
+            <>
+              <span className="text-[#22D3EE] font-medium truncate max-w-[100px]">
+                {name || "User"}
+              </span>
+              <button
+                onClick={logout}
+                className="text-[#475569] hover:text-[#EF4444] transition cursor-pointer"
+              >
+                {language === "ko" ? "로그아웃" : "Logout"}
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/strategies"
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] font-semibold hover:opacity-90 transition"
+            >
+              {language === "ko" ? "로그인" : "Login"}
+            </Link>
+          )}
+        </div>
 
         {/* 모바일 햄버거 버튼 */}
         <button
@@ -91,6 +117,21 @@ export default function AppHeader({ activePage, rightSlot }: AppHeaderProps) {
                 {t(item.labelKey, language)}
               </Link>
             ))}
+            {/* 모바일 사용자 상태 */}
+            <div className="px-6 py-3 border-t border-[#1E293B] mt-1">
+              {isAuthenticated ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[#22D3EE]">{name || "User"}</span>
+                  <button onClick={() => { logout(); setMobileMenuOpen(false); }} className="text-xs text-[#475569] hover:text-[#EF4444] cursor-pointer">
+                    {language === "ko" ? "로그아웃" : "Logout"}
+                  </button>
+                </div>
+              ) : (
+                <Link href="/strategies" onClick={() => setMobileMenuOpen(false)} className="block text-center py-2 rounded-lg bg-gradient-to-r from-[#22D3EE] to-[#06B6D4] text-[#0A0F1C] text-sm font-semibold">
+                  {language === "ko" ? "로그인" : "Login"}
+                </Link>
+              )}
+            </div>
           </nav>
         </div>
       )}
