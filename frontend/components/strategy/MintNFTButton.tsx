@@ -1,0 +1,126 @@
+"use client";
+
+import { useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { prepareMintStrategy } from "@/lib/blockchainApi";
+import { updateStrategy } from "@/lib/api";
+import { buildMemoTransaction, confirmTransaction, getExplorerUrl } from "@/lib/solanaUtils";
+import { useLanguageStore } from "@/stores/languageStore";
+import { t } from "@/lib/i18n";
+import type { ParsedStrategy } from "@/lib/types";
+
+interface MintNFTButtonProps {
+  strategyId: string;
+  strategy: ParsedStrategy;
+  status?: string;
+}
+
+export default function MintNFTButton({ strategyId, strategy, status: initialStatus }: MintNFTButtonProps) {
+  const { publicKey, connected, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+  const { language } = useLanguageStore();
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ hash: string; signature: string; network: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [minted, setMinted] = useState(initialStatus === "verified");
+
+  const handleMint = async () => {
+    if (!connected || !publicKey || !sendTransaction) {
+      setError(t("bc.connectWalletFirst", language));
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. 백엔드에서 메타데이터 + 해시 준비
+      const res = await prepareMintStrategy(
+        strategyId,
+        strategy as unknown as Record<string, unknown>,
+      );
+
+      // 2. Memo 트랜잭션 빌드 (전략 해시를 온체인에 기록)
+      const memo = `TCAI:${res.strategy_hash}:${strategyId}`;
+      const tx = await buildMemoTransaction(connection, publicKey, memo);
+
+      // 3. Phantom 지갑으로 서명 + 전송
+      const signature = await sendTransaction(tx, connection);
+
+      // 4. 트랜잭션 확인 대기
+      const confirmed = await confirmTransaction(connection, signature);
+
+      if (confirmed) {
+        // DB에 민팅 상태 업데이트
+        try {
+          await updateStrategy(strategyId, { status: "verified" });
+        } catch (err) {
+          console.warn("Failed to update strategy status:", err);
+        }
+        setMinted(true);
+        setResult({
+          hash: res.strategy_hash,
+          signature,
+          network: res.network,
+        });
+      } else {
+        setError(t("bc.mintFailed", language));
+      }
+    } catch (e) {
+      console.error("Mint error:", e);
+      setError(e instanceof Error ? e.message : t("bc.mintFailed", language));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 이미 민팅된 전략 (DB에서 로드 시)
+  if (minted && !result) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#9945FF]/10 border border-[#9945FF]/30">
+        <span className="text-[#14F195] text-xs font-semibold">Verified on Solana</span>
+        <span className="text-[8px] px-1.5 py-0.5 rounded bg-[#14F195]/20 text-[#14F195] font-bold">NFT</span>
+      </div>
+    );
+  }
+
+  // 방금 민팅 완료 (시그니처 포함)
+  if (result) {
+    return (
+      <div className="space-y-1">
+        <a
+          href={getExplorerUrl(result.signature, result.network)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#9945FF]/10 border border-[#9945FF]/30 hover:bg-[#9945FF]/20 transition"
+        >
+          <span className="text-[#14F195] text-xs font-semibold">Verified on Solana</span>
+          <span className="text-[10px] text-[#94A3B8] font-mono">{result.signature.slice(0, 8)}...</span>
+        </a>
+        <p className="text-[9px] text-[#475569]">
+          {t("bc.viewOnExplorer", language)}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={handleMint}
+        disabled={loading || !connected}
+        className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-[#9945FF] to-[#14F195] text-white cursor-pointer hover:opacity-90 disabled:opacity-50 transition"
+      >
+        {loading ? (
+          <span className="flex items-center gap-2">
+            <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            {t("bc.minting", language)}
+          </span>
+        ) : connected ? t("bc.mintAsNFT", language) : t("bc.connectWallet", language)}
+      </button>
+      {error && (
+        <p className="text-[10px] text-[#EF4444] mt-1">{error}</p>
+      )}
+    </div>
+  );
+}

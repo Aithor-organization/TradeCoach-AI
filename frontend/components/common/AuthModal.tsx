@@ -7,7 +7,7 @@ import { t } from "@/lib/i18n";
 import { registerWithEmail } from "@/lib/api";
 import Button from "./Button";
 
-export default function AuthModal() {
+export default function AuthModal({ onClose }: { onClose?: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
@@ -24,6 +24,7 @@ export default function AuthModal() {
     try {
       const res = await registerWithEmail(name.trim(), email.trim());
       login(res.access_token, res.user_id, res.name, res.email);
+      onClose?.();
     } catch {
       setError(t("auth.error", language));
     } finally {

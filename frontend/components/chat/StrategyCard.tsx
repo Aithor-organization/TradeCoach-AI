@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import type { ParsedStrategy } from "@/lib/types";
 import { useLanguageStore } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
@@ -16,13 +18,43 @@ interface StrategyCardProps {
 }
 
 function Tooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const ref = useRef<HTMLSpanElement>(null);
+
+  const handleEnter = useCallback(() => {
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      setPos({ x: rect.left + rect.width / 2, y: rect.top });
+    }
+    setShow(true);
+  }, []);
+
   return (
-    <span className="relative group/tip inline-flex ml-1 cursor-help">
-      <span className="w-3.5 h-3.5 rounded-full bg-[#475569]/30 text-[#94A3B8] text-[9px] font-bold inline-flex items-center justify-center leading-none">?</span>
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-md bg-[#0F172A] border border-[#22D3EE30] text-[10px] text-[#94A3B8] whitespace-nowrap opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-10 shadow-lg">
-        {text}
+    <>
+      <span
+        ref={ref}
+        className="inline-flex ml-1 cursor-help"
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setShow(false)}
+      >
+        <span className="w-3.5 h-3.5 rounded-full bg-[#475569]/30 text-[#94A3B8] text-[9px] font-bold inline-flex items-center justify-center leading-none">?</span>
       </span>
-    </span>
+      {show && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed px-2.5 py-1.5 rounded-md bg-[#0F172A] border border-[#22D3EE30] text-[10px] text-[#94A3B8] w-52 shadow-lg leading-relaxed whitespace-normal pointer-events-none"
+          style={{
+            left: pos.x,
+            top: pos.y,
+            transform: "translate(-50%, -100%) translateY(-6px)",
+            zIndex: 99999,
+          }}
+        >
+          {text}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -34,7 +66,7 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
   const displayAmount = investmentAmount ?? pos?.size_value ?? 1000;
 
   return (
-    <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] overflow-hidden w-full">
+    <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] overflow-visible w-full">
       {/* 헤더 */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-[#0F172A]">
         <div className="flex items-center gap-2">
@@ -115,6 +147,30 @@ export default function StrategyCard({ strategy, onRunBacktest, onEdit, onSave, 
                 className="flex-1 bg-[#0F172A] text-white text-sm font-mono rounded-lg px-3 py-1.5 border border-[#47556933] focus:border-[#22D3EE50] focus:outline-none w-full min-w-0"
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 선물 설정 (leverage > 1 또는 market_type === futures) */}
+      {(strategy.leverage && strategy.leverage > 1 || strategy.market_type === "futures") && (
+        <div className="grid grid-cols-3 divide-x divide-[#0F172A] border-b border-[#0F172A]">
+          <div className="px-4 py-3 text-center">
+            <p className="text-xs text-[#475569] mb-1">{t("sc.leverage", language)}</p>
+            <p className="font-mono text-sm font-bold text-[#F59E0B]">
+              {strategy.leverage ?? 10}x
+            </p>
+          </div>
+          <div className="px-4 py-3 text-center">
+            <p className="text-xs text-[#475569] mb-1">{t("sc.direction", language)}</p>
+            <p className="font-mono text-sm font-bold text-[#A78BFA]">
+              {strategy.direction === "long" ? "Long" : strategy.direction === "short" ? "Short" : "Both"}
+            </p>
+          </div>
+          <div className="px-4 py-3 text-center">
+            <p className="text-xs text-[#475569] mb-1">{t("sc.trailingStop", language)}</p>
+            <p className="font-mono text-sm font-bold text-[#94A3B8]">
+              {strategy.exit?.trailing_stop?.enabled ? "ON" : "OFF"}
+            </p>
           </div>
         </div>
       )}

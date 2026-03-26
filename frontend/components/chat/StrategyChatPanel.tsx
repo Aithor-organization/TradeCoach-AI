@@ -13,10 +13,11 @@ interface StrategyChatPanelProps {
   strategyId: string;
   strategy: ParsedStrategy;
   onStrategyUpdate: (updated: ParsedStrategy) => void;
+  onOptimizeRanges?: (ranges: Record<string, number[]>, objective?: string) => void;
   investmentAmount?: number;
 }
 
-export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpdate, investmentAmount }: StrategyChatPanelProps) {
+export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpdate, onOptimizeRanges, investmentAmount }: StrategyChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -268,10 +269,16 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
           let displayContent = msg.content;
 
           if (msg.role === "assistant" && msg.metadata?.parsed_strategy) {
-            // strategy_update 블록이나 일반 json 블록을 제거해서 UI를 깔끔하게 만듦
             displayContent = displayContent.replace(/```strategy_update[\s\S]*?```/g, "").trim();
-            // 가끔 AI가 일반 json으로 보낼 때도 숨김 처리
             displayContent = displayContent.replace(/```json[\s\S]*?```/g, "").trim();
+          }
+
+          // optimize_ranges 블록 감지 → 버튼으로 변환
+          const optimizeMatch = msg.role === "assistant"
+            ? displayContent.match(/```optimize_ranges\s*([\s\S]*?)```/)
+            : null;
+          if (optimizeMatch) {
+            displayContent = displayContent.replace(/```optimize_ranges[\s\S]*?```/g, "").trim();
           }
 
           return (
@@ -295,6 +302,22 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
                     <div className="mb-2 text-[10px] text-[#22D3EE] font-bold">{t("cp.strategyUpdate", language)}</div>
                     <StrategyCard strategy={msg.metadata.parsed_strategy as ParsedStrategy} />
                   </div>
+                )}
+
+                {/* AI 추천 최적화 범위 → 버튼 */}
+                {optimizeMatch && onOptimizeRanges && (
+                  <button
+                    onClick={() => {
+                      try {
+                        const parsed = JSON.parse(optimizeMatch[1]);
+                        const { objective, ...ranges } = parsed;
+                        onOptimizeRanges(ranges, objective);
+                      } catch { /* JSON 파싱 실패 */ }
+                    }}
+                    className="mt-2 w-full py-2 text-xs font-semibold rounded-lg bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B30] hover:bg-[#F59E0B]/20 transition cursor-pointer"
+                  >
+                    {t("cp.runOptimize", language)}
+                  </button>
                 )}
               </div>
             </div>

@@ -29,7 +29,7 @@ export default function BacktestResult({ result }: BacktestResultProps) {
   const sharpeStatus = getSharpeStatus(metrics.sharpe_ratio);
 
   return (
-    <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] overflow-hidden max-w-md">
+    <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] overflow-visible max-w-md">
       {/* 헤더 */}
       <div className="px-5 py-3 border-b border-[#0F172A]">
         <span className="font-semibold text-white text-sm">{"📈 " + t("bt.title", language)}</span>
@@ -61,6 +61,43 @@ export default function BacktestResult({ result }: BacktestResultProps) {
           valueClass="text-white"
         />
       </div>
+
+      {/* 선물 확장 메트릭 */}
+      {metrics.profit_factor != null && (
+        <div className="grid grid-cols-3 gap-px bg-[#0F172A]">
+          <MetricCell
+            label="Profit Factor"
+            value={`${metrics.profit_factor}`}
+            valueClass={metrics.profit_factor >= 1.5 ? "text-[#22C55E]" : "text-[#EAB308]"}
+          />
+          <MetricCell
+            label="CAGR"
+            value={`${metrics.cagr?.toFixed(1) ?? 0}%`}
+            valueClass={getReturnColor(metrics.cagr ?? 0)}
+          />
+          <MetricCell
+            label="Calmar"
+            value={`${metrics.calmar_ratio?.toFixed(2) ?? 0}`}
+            valueClass={Math.abs(metrics.calmar_ratio ?? 0) >= 1 ? "text-[#22C55E]" : "text-[#EAB308]"}
+          />
+        </div>
+      )}
+
+      {/* 롱/숏 별도 통계 */}
+      {metrics.long_trades != null && metrics.long_trades > 0 && (
+        <div className="grid grid-cols-2 gap-px bg-[#0F172A]">
+          <MetricCell
+            label={`Long (${metrics.long_trades})`}
+            value={`${metrics.long_win_rate?.toFixed(1) ?? 0}%`}
+            valueClass="text-[#22C55E]"
+          />
+          <MetricCell
+            label={`Short (${metrics.short_trades ?? 0})`}
+            value={`${metrics.short_win_rate?.toFixed(1) ?? 0}%`}
+            valueClass="text-[#EF4444]"
+          />
+        </div>
+      )}
 
       {/* 거래 수 + 초기자본 */}
       <div className="px-5 py-2.5 border-t border-[#0F172A] flex items-center justify-center gap-3">

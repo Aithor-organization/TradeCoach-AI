@@ -7,9 +7,9 @@ import { useLanguageStore } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
 
 const NAV_LINKS = [
-  { labelKey: "nav.features" as const, href: "#features" },
-  { labelKey: "nav.howItWorks" as const, href: "#how-it-works" },
   { labelKey: "nav.strategies" as const, href: "/strategies" },
+  { labelKey: "nav.trading" as const, href: "/trading" },
+  { labelKey: "nav.marketplace" as const, href: "/marketplace" },
   { labelKey: "nav.pricing" as const, href: "#pricing" },
 ];
 

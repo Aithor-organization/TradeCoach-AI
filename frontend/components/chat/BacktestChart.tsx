@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { EquityPoint, BacktestMetrics, TradeRecord, ActualPeriod } from "@/lib/types";
 import { useLanguageStore } from "@/stores/languageStore";
+import PortalTooltip from "@/components/common/PortalTooltip";
 import { t } from "@/lib/i18n";
 
 interface BacktestChartProps {
@@ -59,6 +60,10 @@ export default function BacktestChart({ equityCurve, metrics, tradeLog, actualPe
           borderColor: "#1E293B",
         },
         localization: {
+          timeFormatter: (t: number) => {
+            const d = new Date(t * 1000);
+            return d.toLocaleDateString([], { month: "short", day: "numeric" });
+          },
           priceFormatter: (price: number) => `$${price.toFixed(2)}`,
         },
       });
@@ -70,12 +75,18 @@ export default function BacktestChart({ equityCurve, metrics, tradeLog, actualPe
         lineWidth: 2,
       });
 
-      const data = equityCurve.map((p) => ({
-        time: p.date as any,
-        value: p.value,
-      }));
+      // 중복 타임스탬프 제거 + 오름차순 정렬
+      const seen = new Set<number>();
+      const data = equityCurve
+        .map((p) => ({ time: p.date as number, value: p.value }))
+        .sort((a, b) => a.time - b.time)
+        .filter((p) => {
+          if (seen.has(p.time)) return false;
+          seen.add(p.time);
+          return true;
+        });
 
-      series.setData(data);
+      series.setData(data as any);
       chart.timeScale().fitContent();
     };
 
@@ -124,23 +135,30 @@ export default function BacktestChart({ equityCurve, metrics, tradeLog, actualPe
       </div>
 
       {/* 차트 영역 */}
-      <div ref={chartRef} className="w-full" />
+      <div ref={chartRef} className="w-full [&_a[href*='tradingview']]:!hidden [&_a[target='_blank']]:!hidden" />
 
       {/* 지표 그리드 */}
       <div className="grid grid-cols-4 gap-px bg-[#0F172A]">
-        <Metric label="MDD" value={`${metrics.max_drawdown}%`} color="text-[#EF4444]" />
-        <Metric label="Sharpe" value={`${metrics.sharpe_ratio}`} color="text-[#22D3EE]" />
-        <Metric label={t("bt.winRate", language)} value={`${metrics.win_rate}%`} color="text-white" />
-        <Metric label={t("bt.trades", language)} value={`${metrics.total_trades}`} color="text-white" />
+        <Metric label="MDD" value={`${metrics.max_drawdown}%`} color="text-[#EF4444]"
+          tip={language === "ko" ? "최대 낙폭 — 최고점 대비 최대 하락 폭. -20% 이내 적정, -30% 초과 위험" : "Max Drawdown — largest peak-to-trough decline. Within -20% acceptable, beyond -30% risky"} />
+        <Metric label="Sharpe" value={`${metrics.sharpe_ratio}`} color="text-[#22D3EE]"
+          tip={language === "ko" ? "위험 대비 수익률. 1.0+ 양호, 1.5+ 우수, 0.5 미만 재설계 필요" : "Risk-adjusted return. 1.0+ good, 1.5+ excellent, below 0.5 needs redesign"} />
+        <Metric label={t("bt.winRate", language)} value={`${metrics.win_rate}%`} color="text-white"
+          tip={language === "ko" ? "전체 거래 중 수익 거래 비율. 40% 미만이면 진입 조건 재검토" : "Percentage of profitable trades. Below 40% review entry conditions"} />
+        <Metric label={t("bt.trades", language)} value={`${metrics.total_trades}`} color="text-white"
+          tip={language === "ko" ? "총 거래 횟수. 30회 미만이면 통계적 신뢰도 부족" : "Total trades. Below 30 lacks statistical significance"} />
       </div>
     </div>
   );
 }
 
-function Metric({ label, value, color }: { label: string; value: string; color: string }) {
+function Metric({ label, value, color, tip }: { label: string; value: string; color: string; tip?: string }) {
   return (
     <div className="bg-[#1E293B] px-3 py-2 text-center">
-      <p className="text-[10px] text-[#94A3B8]">{label}</p>
+      <p className="text-[10px] text-[#94A3B8] flex items-center justify-center gap-0.5">
+        {label}
+        {tip && <PortalTooltip text={tip} />}
+      </p>
       <span className={`font-mono text-sm font-bold ${color}`}>{value}</span>
     </div>
   );
