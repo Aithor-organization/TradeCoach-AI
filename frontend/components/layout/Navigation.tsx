@@ -4,6 +4,7 @@ import Link from "next/link";
 import Button from "@/components/common/Button";
 import WalletConnectButton from "@/components/wallet/WalletConnectButton";
 import { useLanguageStore } from "@/stores/languageStore";
+import { useAuthStore } from "@/stores/authStore";
 import { t } from "@/lib/i18n";
 
 const NAV_LINKS = [
@@ -16,6 +17,7 @@ const NAV_LINKS = [
 
 export default function Navigation() {
   const { language, toggleLanguage } = useLanguageStore();
+  const { isAuthenticated, name } = useAuthStore();
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 h-16 md:h-20 bg-[#0A0F1CCC] backdrop-blur-md border-b border-[#22D3EE10]">
@@ -67,6 +69,16 @@ export default function Navigation() {
           <div className="hidden md:block">
             <WalletConnectButton />
           </div>
+          {/* 사용자 이름 또는 로그인 */}
+          {isAuthenticated ? (
+            <span className="hidden md:inline text-xs text-[#22D3EE] font-medium truncate max-w-[100px]">
+              {name || "User"}
+            </span>
+          ) : (
+            <Link href="/strategies" className="hidden md:inline text-xs text-[#94A3B8] hover:text-[#22D3EE] transition">
+              {language === "ko" ? "로그인" : "Login"}
+            </Link>
+          )}
           {/* CTA 버튼 */}
           <Link href="/chat">
             <Button size="sm" className="text-xs md:text-sm whitespace-nowrap">
