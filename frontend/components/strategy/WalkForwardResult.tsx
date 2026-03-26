@@ -48,7 +48,7 @@ export default function WalkForwardSection({ strategy }: WalkForwardProps) {
         <div className="w-full py-3 rounded-lg bg-[#0F172A] border border-[#EF444430] text-center">
           <p className="text-xs text-[#EF4444]">{error}</p>
           <button onClick={handleRun} className="mt-2 text-[10px] text-[#94A3B8] underline cursor-pointer">
-            {t("wf.retry", language) || "Retry"}
+            {"Retry"}
           </button>
         </div>
       );
@@ -57,16 +57,16 @@ export default function WalkForwardSection({ strategy }: WalkForwardProps) {
       <div className="w-full py-3 rounded-lg bg-[#0F172A] border border-[#22D3EE20] text-center">
         <div className="flex items-center justify-center gap-2">
           <svg className="animate-spin h-4 w-4 text-[#22D3EE]" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-          <span className="text-xs text-[#22D3EE] animate-pulse">{t("wf.analyzing", language)}</span>
+          <span className="text-xs text-[#22D3EE] animate-pulse">{"Analyzing..."}</span>
         </div>
-        <p className="text-[10px] text-[#475569] mt-1">{t("wf.analyzingDesc", language)}</p>
+        <p className="text-[10px] text-[#475569] mt-1">{"Walk-forward analysis in progress"}</p>
       </div>
     ) : (
       <button
         onClick={handleRun}
         className="w-full py-2 text-xs font-semibold rounded-lg bg-[#0F172A] text-[#94A3B8] border border-[#22D3EE20] cursor-pointer hover:border-[#22D3EE50]"
       >
-        {t("wf.run", language)}
+        {"Run Walk-Forward"}
       </button>
     );
   }
@@ -96,7 +96,7 @@ export default function WalkForwardSection({ strategy }: WalkForwardProps) {
           return (
             <div key={i} className="space-y-1">
               <div className="flex items-center justify-between text-xs text-[#475569]">
-                <span>Window {(w as Record<string, unknown>).window_index as number ?? i + 1}</span>
+                <span>Window {(w as unknown as Record<string, unknown>).window_index as number ?? i + 1}</span>
                 <span className={ratio >= 0.5 ? "text-[#22C55E]" : "text-[#EF4444]"}>
                   {(ratio * 100).toFixed(0)}%
                 </span>
