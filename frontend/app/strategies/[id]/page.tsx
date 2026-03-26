@@ -523,7 +523,7 @@ export default function StrategyDetailPage() {
                   )}
 
                   {/* AI 요약 분석 리포트 카드 (백테스트 실행 시 생성, 저장된 것만 표시) */}
-                  <BacktestSummary aiSummary={history[selectedIndex].result.ai_summary} />
+                  <BacktestSummary aiSummary={history[selectedIndex]?.result?.ai_summary} />
 
                   {history[selectedIndex]?.result?.trade_log && (
                     <TradeLogTable trades={history[selectedIndex].result.trade_log} />
@@ -833,7 +833,7 @@ export default function StrategyDetailPage() {
 
                     {/* AI 요약 분석 리포트 카드 (백테스트 실행 시 생성, 저장된 것만 표시) */}
                     {history[selectedIndex]?.result && (
-                      <BacktestSummary aiSummary={history[selectedIndex].result.ai_summary} />
+                      <BacktestSummary aiSummary={history[selectedIndex]?.result?.ai_summary} />
                     )}
 
                     {history[selectedIndex]?.result?.trade_log && (
