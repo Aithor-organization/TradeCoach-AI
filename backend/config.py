@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 1440  # 24시간
 
     # CORS
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,https://trade-coach-ai.vercel.app"
 
     # Solana
     solana_rpc_url: str = "https://api.devnet.solana.com"
