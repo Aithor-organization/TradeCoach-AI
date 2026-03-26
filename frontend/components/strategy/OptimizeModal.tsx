@@ -106,7 +106,7 @@ export default function OptimizeModal({ strategy, onClose, onApply }: OptimizeMo
   const { language } = useLanguageStore();
   const [ranges, setRanges] = useState(() => buildDefaultRanges(strategy));
   const [objective, setObjective] = useState("sharpe");
-  const [maxCombinations, setMaxCombinations] = useState(100);
+  const [maxCombinations, setMaxCombinations] = useState(30);
   const [results, setResults] = useState<OptimizeResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [tested, setTested] = useState(0);
