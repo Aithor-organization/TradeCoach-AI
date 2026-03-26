@@ -4,7 +4,7 @@ import { useMemo, useCallback, ReactNode } from "react";
 import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from "@solana/wallet-adapter-react";
 import { WalletError } from "@solana/wallet-adapter-base";
 
-const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.mainnet-beta.solana.com";
+const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
 
 export default function WalletProvider({ children }: { children: ReactNode }) {
   const wallets = useMemo(() => [], []);
