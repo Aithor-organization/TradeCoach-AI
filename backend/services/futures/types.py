@@ -23,6 +23,25 @@ class ExitReason(str, Enum):
     LIQUIDATION = "liquidation"
 
 
+def _binance_maintenance_margin(leverage: int) -> float:
+    """Return Binance maintenance margin rate based on leverage tier.
+
+    Binance USDT-M Futures maintenance margin table:
+      1–10x  : 0.50%
+      11–20x : 1.00%
+      21–50x : 2.50%
+      51–125x: 5.00%
+    """
+    if leverage <= 10:
+        return 0.005
+    elif leverage <= 20:
+        return 0.01
+    elif leverage <= 50:
+        return 0.025
+    else:
+        return 0.05
+
+
 @dataclass
 class FuturesConfig:
     """Futures backtest configuration."""
@@ -31,6 +50,7 @@ class FuturesConfig:
     direction: str = "both"  # "long", "short", "both"
     commission_rate: float = 0.0004  # 0.04% taker fee
     slippage_ticks: int = 1
+    slippage_pct: float = 0.05  # 0.05% slippage (현실적 크립토 선물)
 
     # Risk management
     stop_loss_pct: float = -0.4
@@ -46,8 +66,9 @@ class FuturesConfig:
     trailing_trigger_pct: float = 0.9
     trailing_callback_pct: float = 0.2
 
-    # Position
-    investment: float = 1000.0
+    # Capital & Position — 전체 자본 투입 (BinanceTrader 방식)
+    initial_capital: float = 1000.0  # 초기 총 자본금
+    investment: float = 1000.0  # 포지션당 투자금 = 전체 자본
 
     @classmethod
     def from_strategy_json(cls, strategy: dict) -> "FuturesConfig":
@@ -90,11 +111,17 @@ class Position:
 
     @property
     def liquidation_price(self) -> float:
-        """Approximate liquidation price (simplified)."""
-        margin_ratio = 1.0 / self.leverage
+        """Liquidation price based on Binance maintenance margin table.
+
+        Formula:
+          LONG : entry * (1 - (1/leverage - maintenance_margin))
+          SHORT: entry * (1 + (1/leverage - maintenance_margin))
+        """
+        mm = _binance_maintenance_margin(self.leverage)
+        factor = (1.0 / self.leverage) - mm
         if self.side == Side.LONG:
-            return self.entry_price * (1 - margin_ratio + 0.006)
-        return self.entry_price * (1 + margin_ratio - 0.006)
+            return self.entry_price * (1.0 - factor)
+        return self.entry_price * (1.0 + factor)
 
     def unrealized_pnl(self, current_price: float) -> float:
         if self.side == Side.LONG:

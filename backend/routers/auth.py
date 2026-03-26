@@ -8,11 +8,59 @@ import secrets
 import logging
 from datetime import datetime, timedelta, timezone
 from jose import jwt
+import nacl.signing
+import nacl.exceptions
+import base58
 
 router = APIRouter()
 settings = get_settings()
 logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
+
+
+def verify_solana_signature(wallet_address: str, nonce: str, signature: str) -> bool:
+    """Solana 지갑 서명 검증 (Ed25519).
+
+    서명 대상 메시지: nonce 문자열 (UTF-8 바이트).
+    서명: base58 인코딩된 Ed25519 서명 (64 bytes).
+    """
+    try:
+        # 지갑 주소(공개 키)를 base58 디코딩
+        public_key_bytes = base58.b58decode(wallet_address)
+        if len(public_key_bytes) != 32:
+            logger.warning(f"잘못된 공개 키 길이: {len(public_key_bytes)} (expected 32)")
+            return False
+
+        # 서명을 base58 디코딩
+        signature_bytes = base58.b58decode(signature)
+        if len(signature_bytes) != 64:
+            logger.warning(f"잘못된 서명 길이: {len(signature_bytes)} (expected 64)")
+            return False
+
+        # nacl VerifyKey로 검증
+        verify_key = nacl.signing.VerifyKey(public_key_bytes)
+        message_bytes = nonce.encode("utf-8")
+        verify_key.verify(message_bytes, signature_bytes)
+        return True
+    except (nacl.exceptions.BadSignatureError, nacl.exceptions.CryptoError):
+        logger.warning(f"서명 검증 실패 (wallet={wallet_address})")
+        return False
+    except Exception as e:
+        logger.error(f"서명 검증 중 예외 (wallet={wallet_address}): {e}")
+        return False
+
+
+def _create_jwt_token(user_id: str, **extra_claims) -> str:
+    """통일된 JWT 토큰 생성. exp는 Unix timestamp(int)로 직렬화."""
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=settings.jwt_expire_minutes)
+    token_data = {
+        "sub": user_id,
+        "iat": int(now.timestamp()),
+        "exp": int(expire.timestamp()),
+        **extra_claims,
+    }
+    return jwt.encode(token_data, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 # 인메모리 폴백 (Supabase 연결 안 될 때)
 _nonce_store: dict[str, str] = {}
@@ -53,24 +101,19 @@ async def verify_wallet(request: Request, body: WalletVerifyRequest):
         raise HTTPException(status_code=401, detail="Invalid or expired nonce")
 
     try:
-        # TODO: 실제 Solana 서명 검증 (nacl.sign.detached.verify)
-        # MVP에서는 nonce 매칭으로 간소화
+        # Solana Ed25519 서명 검증
+        if not verify_solana_signature(body.wallet_address, stored_nonce, body.signature):
+            raise HTTPException(status_code=401, detail="Invalid signature")
 
-        # nonce 삭제 (양쪽 모두)
+        # nonce 삭제 (리플레이 방지 — 양쪽 모두)
         await delete_nonce(body.wallet_address)
         _nonce_store.pop(body.wallet_address, None)
 
         # Supabase에서 사용자 조회 또는 생성
         user = await get_or_create_user(body.wallet_address)
 
-        # JWT 생성
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-        token_data = {
-            "sub": user["id"],
-            "wallet": body.wallet_address,
-            "exp": expire,
-        }
-        access_token = jwt.encode(token_data, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+        # 통일된 JWT 생성
+        access_token = _create_jwt_token(user["id"], wallet=body.wallet_address)
 
         return AuthResponse(
             access_token=access_token,
@@ -137,20 +180,19 @@ async def register_with_email(request: Request, body: EmailRegisterRequest):
         if not user:
             raise HTTPException(status_code=500, detail="Failed to create user")
 
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-        token_data = {
-            "sub": user["id"],
-            "email": body.email,
-            "name": body.name,
-            "exp": expire,
-        }
-        access_token = jwt.encode(token_data, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+        # 통일된 JWT 생성 (email_verified는 향후 이메일 인증 플로우용)
+        access_token = _create_jwt_token(
+            user["id"],
+            email=body.email,
+            email_verified=False,
+        )
 
         return EmailAuthResponse(
             access_token=access_token,
             user_id=user["id"],
             name=user.get("display_name", body.name),
             email=body.email,
+            email_verified=False,
         )
     except HTTPException:
         raise

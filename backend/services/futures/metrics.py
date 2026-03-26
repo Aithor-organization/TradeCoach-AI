@@ -6,7 +6,7 @@ Includes: MDD, CAGR, Sharpe, Calmar, Profit Factor, Win Rate, etc.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Union
 import math
 
 
@@ -32,7 +32,7 @@ class BacktestMetrics:
     sharpe_ratio: float = 0.0
     win_rate: float = 0.0
     total_trades: int = 0
-    cagr: float = 0.0
+    cagr: Optional[float] = None  # None when period < 36.5 days
     profit_factor: float = 0.0
     calmar_ratio: float = 0.0
     avg_win: float = 0.0
@@ -45,8 +45,19 @@ class BacktestMetrics:
     init_cash: float = 1000.0
 
     def to_dict(self) -> dict:
-        return {k: round(v, 4) if isinstance(v, float) else v
-                for k, v in self.__dict__.items()}
+        import math
+        result = {}
+        for k, v in self.__dict__.items():
+            if v is None:
+                result[k] = None
+            elif isinstance(v, float):
+                if math.isinf(v) or math.isnan(v):
+                    result[k] = 0.0
+                else:
+                    result[k] = round(v, 4)
+            else:
+                result[k] = v
+        return result
 
 
 def calculate_metrics(
@@ -93,11 +104,15 @@ def calculate_metrics(
     # MDD from equity curve
     m.max_drawdown = _calculate_mdd(equity_curve) if equity_curve else 0
 
-    # CAGR
+    # CAGR — None when period is shorter than 36.5 days (meaningless annualisation)
     if days and days > 0 and equity_curve:
         years = days / 365.25
         final_ratio = equity_curve[-1] / init_cash
-        m.cagr = ((final_ratio ** (1 / years)) - 1) * 100 if years > 0 and final_ratio > 0 else 0
+        if years >= 0.1 and final_ratio > 0:
+            cagr_raw = ((final_ratio ** (1 / years)) - 1) * 100
+            m.cagr = round(min(cagr_raw, 99999.99), 4)  # 오버플로 방지
+        else:
+            m.cagr = None  # < 36.5 days: CAGR is not meaningful
 
     # Sharpe Ratio (daily returns)
     if len(equity_curve) >= 2:
@@ -107,8 +122,12 @@ def calculate_metrics(
         std_ret = math.sqrt(sum((r - avg_ret) ** 2 for r in returns) / len(returns))
         m.sharpe_ratio = (avg_ret / std_ret * math.sqrt(252)) if std_ret > 0 else 0
 
-    # Calmar Ratio
-    m.calmar_ratio = (m.cagr / abs(m.max_drawdown)) if m.max_drawdown != 0 else 0
+    # Calmar Ratio — only calculated when CAGR is available
+    if m.cagr is not None and m.max_drawdown != 0:
+        calmar_raw = m.cagr / abs(m.max_drawdown)
+        m.calmar_ratio = round(min(calmar_raw, 9999.99), 4)
+    else:
+        m.calmar_ratio = 0.0
 
     return m
 

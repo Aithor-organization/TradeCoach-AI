@@ -90,3 +90,4 @@ class StrategyUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     parsed_strategy: Optional[dict] = None
+    status: Optional[str] = None

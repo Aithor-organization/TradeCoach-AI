@@ -44,38 +44,38 @@ TradeCoach-AI (웹 UI)          RCoinFutTrader (엔진)
 기존 현물 백테스트를 선물(Futures) 기반으로 완전 교체
 
 ### 1.1 데이터 소스 전환
-- [ ] Binance Futures Klines API 엔드포인트 변경 (`/fapi/v1/klines`)
-- [ ] 과거 데이터 다운로드 스크립트 포팅 (`scripts/download_data.sh` → Python)
-- [ ] CSV 캐싱 (2년치 데이터 로컬 저장, 이후 증분 업데이트)
+- [x] Binance Futures Klines API 엔드포인트 변경 (`/fapi/v1/klines`)
+- [x] 과거 데이터 다운로드 스크립트 포팅 (`scripts/download_data.sh` → Python)
+- [x] CSV 캐싱 (2년치 데이터 로컬 저장, 이후 증분 업데이트)
 - **포팅 원본**: `src/backtester/data.rs` (550줄)
 
 ### 1.2 선물 백테스트 엔진 (`backend/services/futures_engine.py` 신규)
-- [ ] Long/Short 양방향 포지션 지원
-- [ ] 레버리지 설정 (1x~125x)
-- [ ] 수수료 0.04% (maker/taker 구분)
-- [ ] 분할 익절 (Partial Exit): 1차 목표에서 50% 청산
-- [ ] 추적 손절 (Trailing Stop): 최고점 대비 콜백 비율
-- [ ] 강제 청산 (Liquidation) 가격 계산
-- [ ] 슬리피지 모델 (1~2틱)
+- [x] Long/Short 양방향 포지션 지원
+- [x] 레버리지 설정 (1x~125x)
+- [x] 수수료 0.04% (maker/taker 구분)
+- [x] 분할 익절 (Partial Exit): 1차 목표에서 50% 청산
+- [x] 추적 손절 (Trailing Stop): 최고점 대비 콜백 비율
+- [x] 강제 청산 (Liquidation) 가격 계산
+- [x] 슬리피지 모델 (1~2틱)
 - **포팅 원본**: `src/backtester/realistic_engine.rs` (1,002줄), `src/app/mod.rs` (343줄)
 
 ### 1.3 지표 확장 (`backend/services/indicators.py` 신규)
-- [ ] ADX (Average Directional Index) — 추세 강도
-- [ ] DI+/DI- (Directional Indicator) — 추세 방향
-- [ ] DDIF/MADDIF — RCoinFutTrader 핵심 전략 지표
-- [ ] Stochastic RSI (K/D 라인)
-- [ ] ATR (Average True Range)
-- [ ] EMA cross (short/long period)
-- [ ] 증분형 계산 (전체 재계산 없이 새 봉만 업데이트)
+- [x] ADX (Average Directional Index) — 추세 강도
+- [x] DI+/DI- (Directional Indicator) — 추세 방향
+- [x] DDIF/MADDIF — RCoinFutTrader 핵심 전략 지표
+- [x] Stochastic RSI (K/D 라인)
+- [x] ATR (Average True Range)
+- [x] EMA cross (short/long period)
+- [x] 증분형 계산 (전체 재계산 없이 새 봉만 업데이트)
 - **포팅 원본**: `src/backtester/indicators.rs` (799줄), `src/strategy/indicators.rs` (334줄)
 
 ### 1.4 성능 메트릭 확장 (`backend/services/metrics.py` 신규)
-- [ ] CAGR (연평균 복합 수익률)
-- [ ] Profit Factor (총이익/총손실)
-- [ ] Calmar Ratio (CAGR/MDD)
-- [ ] Average Win/Loss 비율
-- [ ] Maximum Consecutive Losses
-- [ ] Long/Short 별도 통계
+- [x] CAGR (연평균 복합 수익률)
+- [x] Profit Factor (총이익/총손실)
+- [x] Calmar Ratio (CAGR/MDD)
+- [x] Average Win/Loss 비율
+- [x] Maximum Consecutive Losses
+- [x] Long/Short 별도 통계
 - **포팅 원본**: `src/backtester/metrics.rs` (487줄)
 
 ### 1.5 전략 JSON 스키마 확장
@@ -110,21 +110,21 @@ TradeCoach-AI (웹 UI)          RCoinFutTrader (엔진)
 ## Phase 2: 파라미터 최적화 + Walk-Forward (5일)
 
 ### 2.1 Grid Search 최적화 (`backend/services/optimizer.py` 신규)
-- [ ] 파라미터 범위 정의 (레버리지, TP/SL, 지표 파라미터)
-- [ ] 선물 백테스트 엔진으로 병렬 실행 (multiprocessing)
-- [ ] 목적 함수: Sharpe, Calmar, Profit Factor 기반 복합 점수
-- [ ] 상위 N개 결과 반환
+- [x] 파라미터 범위 정의 (레버리지, TP/SL, 지표 파라미터)
+- [x] 선물 백테스트 엔진으로 병렬 실행 (multiprocessing)
+- [x] 목적 함수: Sharpe, Calmar, Profit Factor 기반 복합 점수
+- [x] 상위 N개 결과 반환
 - **포팅 원본**: `src/backtester/optimizer.rs` (601줄)
 
 ### 2.2 Walk-Forward 전진분석 (`backend/services/walk_forward.py` 신규)
-- [ ] 데이터 기간 분할: In-Sample (훈련) / Out-of-Sample (검증)
-- [ ] Rolling Window 방식 (Anchored + Sliding)
-- [ ] OOS 성과 집계 → 과적합 판정 (IS 대비 50% 이상이면 유효)
-- [ ] 최적 파라미터 → 최종 추천
+- [x] 데이터 기간 분할: In-Sample (훈련) / Out-of-Sample (검증)
+- [x] Rolling Window 방식 (Anchored + Sliding)
+- [x] OOS 성과 집계 → 과적합 판정 (IS 대비 50% 이상이면 유효)
+- [x] 최적 파라미터 → 최종 추천
 - **포팅 원본**: `src/backtester/ddif_optimizer.rs` (1,161줄)
 
 ### 2.3 API 엔드포인트
-- [ ] `POST /backtest/optimize`
+- [x] `POST /backtest/optimize`
   ```json
   {
     "strategy_id": "...",
@@ -138,7 +138,7 @@ TradeCoach-AI (웹 UI)          RCoinFutTrader (엔진)
     "max_combinations": 100
   }
   ```
-- [ ] `POST /backtest/walk-forward`
+- [x] `POST /backtest/walk-forward`
   ```json
   {
     "strategy_id": "...",
@@ -149,53 +149,53 @@ TradeCoach-AI (웹 UI)          RCoinFutTrader (엔진)
   ```
 
 ### 2.4 프론트엔드 UI
-- [ ] 전략 상세 페이지에 "Optimize" 버튼
-- [ ] 최적화 결과 테이블 (상위 10개 파라미터 조합 + 메트릭)
-- [ ] "Walk-Forward" 버튼 → IS/OOS 비교 차트
-- [ ] 과적합 판정 배지 (Pass/Fail)
+- [x] 전략 상세 페이지에 "Optimize" 버튼
+- [x] 최적화 결과 테이블 (상위 10개 파라미터 조합 + 메트릭)
+- [x] "Walk-Forward" 버튼 → IS/OOS 비교 차트
+- [x] 과적합 판정 배지 (Pass/Fail)
 
 ---
 
 ## Phase 3: 실시간 데이터 + 모의투자 (7일)
 
 ### 3.1 WebSocket 가격 스트리밍 (`backend/services/binance_ws.py` 신규)
-- [ ] Binance Futures aggTrade WebSocket 연결
-- [ ] N분봉 BarAggregator (틱 → OHLCV 변환)
-- [ ] 15분봉 (필터) + 3분봉 (트레이드) 멀티타임프레임
-- [ ] FastAPI WebSocket 엔드포인트 (`/ws/price/{symbol}`)
+- [x] Binance Futures aggTrade WebSocket 연결
+- [x] N분봉 BarAggregator (틱 → OHLCV 변환)
+- [x] 15분봉 (필터) + 3분봉 (트레이드) 멀티타임프레임
+- [x] FastAPI WebSocket 엔드포인트 (`/ws/price/{symbol}`)
 - **포팅 원본**: `src/marketdata/ws.rs`, `src/marketdata/bars.rs`
 
 ### 3.2 모의투자 엔진 (`backend/services/demo_trading.py` 신규)
-- [ ] 가상 포지션 관리 (Long/Short/반전)
-- [ ] 레버리지 반영 잔고 계산
-- [ ] 주문 타입: Market, Limit
-- [ ] SL/TP/분할익절/추적손절 자동 관리
-- [ ] 강제 청산 시뮬레이션
-- [ ] 거래 내역 Supabase 저장
+- [x] 가상 포지션 관리 (Long/Short/반전)
+- [x] 레버리지 반영 잔고 계산
+- [x] 주문 타입: Market, Limit
+- [x] SL/TP/분할익절/추적손절 자동 관리
+- [x] 강제 청산 시뮬레이션
+- [x] 거래 내역 Supabase 저장
 - **포팅 원본**: `src/app/mod.rs` (DemoEngine), `src/app/runner.rs` (DemoRunner)
 
 ### 3.3 DDIF 전략 엔진 (`backend/services/ddif_strategy.py` 신규)
-- [ ] 15분봉 필터: MADDIF1 > threshold → 매수/매도 준비 상태
-- [ ] 3분봉 진입: 준비 상태에서 MADDIF 크로스오버 → Long/Short 진입
-- [ ] 15분봉 반전 신호 → 포지션 청산
+- [x] 15분봉 필터: MADDIF1 > threshold → 매수/매도 준비 상태
+- [x] 3분봉 진입: 준비 상태에서 MADDIF 크로스오버 → Long/Short 진입
+- [x] 15분봉 반전 신호 → 포지션 청산
 - **포팅 원본**: `src/strategy/logic.rs` (492줄)
 
 ### 3.4 API 엔드포인트
-- [ ] `POST /trading/demo/start` — 모의투자 세션 시작 (전략+심볼+레버리지)
-- [ ] `POST /trading/demo/stop` — 모의투자 세션 종료
-- [ ] `GET /trading/demo/status` — 현재 포지션/잔고/PnL
-- [ ] `GET /trading/demo/history` — 거래 내역
+- [x] `POST /trading/demo/start` — 모의투자 세션 시작 (전략+심볼+레버리지)
+- [x] `POST /trading/demo/stop` — 모의투자 세션 종료
+- [x] `GET /trading/demo/status` — 현재 포지션/잔고/PnL
+- [x] `GET /trading/demo/history` — 거래 내역
 
 ### 3.5 프론트엔드 (`/trading` 신규 페이지)
-- [ ] 실시간 가격 차트 (lightweight-charts WebSocket 연동)
-- [ ] 포지션 카드 (Long/Short, 레버리지, 미실현 PnL)
-- [ ] 잔고/마진 표시
-- [ ] 거래 히스토리 테이블
-- [ ] 시작/중지 버튼
+- [x] 실시간 가격 차트 (lightweight-charts WebSocket 연동)
+- [x] 포지션 카드 (Long/Short, 레버리지, 미실현 PnL)
+- [x] 잔고/마진 표시
+- [x] 거래 히스토리 테이블
+- [x] 시작/중지 버튼
 
 ---
 
-## Phase 4: Rust 고속 백테스트 브릿지 (선택, 5일)
+## Phase 4: Rust 고속 백테스트 브릿지 (선택, 5일) — **보류**
 
 ### 4.1 Rust HTTP API (`RCoinFutTrader/src/bin/api_server.rs` 신규)
 - [ ] Axum 경량 HTTP 서버
@@ -284,16 +284,16 @@ CREATE TABLE demo_trades (
 
 ### 5.1 Merkle Tree 설정
 
-- [ ] 앱 초기화 시 Concurrent Merkle Tree 생성 (한 번)
+- [x] 앱 초기화 시 Concurrent Merkle Tree 생성 (한 번)
   - `maxDepth: 20` → 최대 1,048,576개 리프
   - `maxBufferSize: 64` → 동시 쓰기 지원
   - 비용: ~$0.05 (tree 생성 rent)
-- [ ] Tree authority = 백엔드 서버 키페어 (자동 신호 기록용)
+- [x] Tree authority = 백엔드 서버 키페어 (자동 신호 기록용)
 
 ### 5.2 전략 cNFT 민팅 (`backend/services/blockchain.py` 신규)
 
-- [ ] 전략 JSON → SHA256 해시 생성
-- [ ] Bubblegum `mintToCollectionV1`로 cNFT 민팅
+- [x] 전략 JSON → SHA256 해시 생성
+- [x] Bubblegum `mintToCollectionV1`로 cNFT 민팅
   ```
   metadata:
     name: "Strategy: DDIF BTC 15m"
@@ -303,14 +303,14 @@ CREATE TABLE demo_trades (
       created_by: "user_wallet_or_email"
       immutable: true
   ```
-- [ ] `isMutable: false` 설정 → 민팅 후 수정 불가
-- [ ] burn (삭제): 소유자 서명 필요
+- [x] `isMutable: false` 설정 → 민팅 후 수정 불가
+- [x] burn (삭제): 소유자 서명 필요
 - **비용: ~$0.00005/전략**
 
 ### 5.3 매매 신호 압축 기록
 
-- [ ] 모의투자 엔진에서 신호 발생 시 자동 호출
-- [ ] 신호 데이터 구조:
+- [x] 모의투자 엔진에서 신호 발생 시 자동 호출
+- [x] 신호 데이터 구조:
   ```json
   {
     "strategy_nft_id": "...",
@@ -321,34 +321,34 @@ CREATE TABLE demo_trades (
     "timestamp": 1710720000
   }
   ```
-- [ ] SHA256(signal_data) → Merkle Tree 리프로 append
-- [ ] 원본 데이터는 Helius 인덱서가 자동 저장 (DAS API로 조회)
+- [x] SHA256(signal_data) → Merkle Tree 리프로 append
+- [x] 원본 데이터는 Helius 인덱서가 자동 저장 (DAS API로 조회)
 - **비용: ~$0.00001/신호** (100만 건 = ~$1)
 
 ### 5.4 조회 + 검증
 
-- [ ] **전략 조회**: Helius DAS `getAssetsByOwner` → 내 전략 cNFT 목록
-- [ ] **신호 히스토리**: Helius DAS `getAssetsByGroup` → 전략별 신호 리프 목록
-- [ ] **무결성 검증**: `getAssetProof` → Merkle proof 검증
+- [x] **전략 조회**: Helius DAS `getAssetsByOwner` → 내 전략 cNFT 목록
+- [x] **신호 히스토리**: Helius DAS `getAssetsByGroup` → 전략별 신호 리프 목록
+- [x] **무결성 검증**: `getAssetProof` → Merkle proof 검증
   - DB 신호 해시 vs 온체인 리프 해시 비교
   - 불일치 시 → 조작 감지 경고
-- [ ] **선택적 공개**: 소유자가 원본 공개 → 해시 일치 검증 가능
+- [x] **선택적 공개**: 소유자가 원본 공개 → 해시 일치 검증 가능
 
 ### 5.5 API 엔드포인트
 
-- [ ] `POST /blockchain/strategy/mint` — 전략을 cNFT로 민팅
-- [ ] `POST /blockchain/strategy/{id}/burn` — 전략 cNFT 삭제 (소유자만)
-- [ ] `GET /blockchain/strategy/{id}/verify` — 전략 무결성 검증 (DB vs 온체인 해시)
-- [ ] `POST /blockchain/signal` — 매매 신호 압축 기록 (자동 호출)
-- [ ] `GET /blockchain/signal/history/{strategy_id}` — 신호 히스토리 조회 (DAS API)
-- [ ] `GET /blockchain/signal/{id}/proof` — 개별 신호 Merkle proof 검증
+- [x] `POST /blockchain/strategy/mint` — 전략을 cNFT로 민팅
+- [x] `POST /blockchain/strategy/{id}/burn` — 전략 cNFT 삭제 (소유자만)
+- [x] `GET /blockchain/strategy/{id}/verify` — 전략 무결성 검증 (DB vs 온체인 해시)
+- [x] `POST /blockchain/signal` — 매매 신호 압축 기록 (자동 호출)
+- [x] `GET /blockchain/signal/history/{strategy_id}` — 신호 히스토리 조회 (DAS API)
+- [x] `GET /blockchain/signal/{id}/proof` — 개별 신호 Merkle proof 검증
 
 ### 5.6 프론트엔드 UI
 
-- [ ] 전략 상세 페이지에 "Mint as NFT" 버튼
-- [ ] 온체인 등록 전략에 "Verified on Solana" 배지
-- [ ] 신호 히스토리 탭 (온체인 기록 목록 + Merkle proof 상태)
-- [ ] 전략 공개/비공개 토글 (원본 공개 시 검증 가능)
+- [x] 전략 상세 페이지에 "Mint as NFT" 버튼
+- [x] 온체인 등록 전략에 "Verified on Solana" 배지
+- [x] 신호 히스토리 탭 (온체인 기록 목록 + Merkle proof 상태)
+- [x] 전략 공개/비공개 토글 (원본 공개 시 검증 가능)
 
 ### 5.7 기술 스택
 
@@ -420,11 +420,11 @@ CREATE TABLE onchain_signals (
 
 | Phase | 내용 | 기간 | 의존성 | 상태 |
 |-------|------|------|--------|------|
-| **Phase 1** | 선물 백테스트 엔진 전환 | 5일 | 없음 | 진행 예정 |
-| **Phase 2** | 최적화 + Walk-Forward | 5일 | Phase 1 | 진행 예정 |
-| **Phase 3** | 실시간 + 모의투자 | 7일 | Phase 1 | 진행 예정 |
+| **Phase 1** | 선물 백테스트 엔진 전환 | 5일 | 없음 | **완료** |
+| **Phase 2** | 최적화 + Walk-Forward | 5일 | Phase 1 | **완료** |
+| **Phase 3** | 실시간 + 모의투자 | 7일 | Phase 1 | **완료** |
 | ~~Phase 4~~ | ~~Rust 고속 브릿지~~ | ~~5일~~ | - | **보류** (Python 속도 충분) |
-| **Phase 5** | 블록체인 통합 (상태 압축) | 7일 | Phase 3 | 진행 예정 |
+| **Phase 5** | 블록체인 통합 (상태 압축) | 7일 | Phase 3 | **구조 완료** (시뮬레이션 모드, Solana SDK 설치 후 활성화) |
 | **총 예상** | Phase 1~3 + 5 | **~24일** | | Python only, 서버 1개 |
 
 ---

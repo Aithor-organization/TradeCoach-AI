@@ -7,9 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from config import get_settings
-from routers import auth, chat, strategy, backtest, market
+from routers import auth, chat, strategy, backtest, market, optimize, trading, blockchain, admin, marketplace
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,32 @@ app = FastAPI(
     ],
 )
 
-# Rate Limiting 예외 핸들러
-app.state.limiter = auth.limiter
+# Rate Limiting — 인증된 사용자는 user_id 기반, 미인증은 IP 기반
+def _rate_limit_key_func(request: Request) -> str:
+    """인증된 사용자는 JWT의 user_id, 미인증은 클라이언트 IP로 Rate Limit 키 생성."""
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            from jose import jwt as _jwt
+            token = auth_header[7:]
+            payload = _jwt.decode(
+                token, settings.jwt_secret,
+                algorithms=[settings.jwt_algorithm],
+                options={"verify_exp": False},  # 키 추출만 — 만료 무관
+            )
+            user_id = payload.get("sub")
+            if user_id:
+                return f"user:{user_id}"
+        except Exception:
+            pass
+    return get_remote_address(request)
+
+# limiter를 사용자 인식 키 함수로 재생성
+from slowapi import Limiter
+user_aware_limiter = Limiter(key_func=_rate_limit_key_func)
+app.state.limiter = user_aware_limiter
+# auth 라우터의 limiter도 교체 (엔드포인트별 제한은 데코레이터에서 직접 설정)
+auth.limiter = user_aware_limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
@@ -73,8 +98,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    import traceback; traceback.print_exc()
     logger.error(f"처리되지 않은 예외 [{request.method} {request.url.path}]: {type(exc).__name__}: {exc}", exc_info=True)
-    return JSONResponse(status_code=500, content={"detail": "서버 내부 오류가 발생했습니다.", "type": "server_error"})
+    return JSONResponse(status_code=500, content={"detail": f"{type(exc).__name__}: {exc}", "type": "server_error"})
 
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -82,6 +108,11 @@ app.include_router(chat.router, prefix="/chat", tags=["chat"])
 app.include_router(strategy.router, prefix="/strategy", tags=["strategy"])
 app.include_router(backtest.router, prefix="/backtest", tags=["backtest"])
 app.include_router(market.router, prefix="/market", tags=["market"])
+app.include_router(optimize.router, prefix="/optimize", tags=["optimize"])
+app.include_router(trading.router, prefix="/trading", tags=["trading"])
+app.include_router(blockchain.router, prefix="/blockchain", tags=["blockchain"])
+app.include_router(admin.router)
+app.include_router(marketplace.router)
 
 
 @app.get("/health")

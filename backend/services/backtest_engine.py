@@ -156,8 +156,9 @@ def _extract_results(pf, df: pd.DataFrame, init_cash: float) -> dict:
     step = max(1, len(equity_list) // 200)
     sampled_equity = equity_list[::step]
 
-    # 지표 계산
-    total_return = round(float(pf.total_return() * 100), 2)
+    # 지표 계산 — 에쿼티 기반 수익률 (SL/TP 수정 가격 반영)
+    final_equity = float(equity_series.iloc[-1]) if len(equity_series) > 0 else init_cash
+    total_return = round(((final_equity / init_cash) - 1) * 100, 2)
     max_dd = round(float(pf.max_drawdown() * 100), 2)
 
     # Sharpe Ratio

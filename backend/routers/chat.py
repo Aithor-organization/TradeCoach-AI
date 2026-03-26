@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 @router.post("/message")
-@limiter.limit("10/minute;100/day")
+@limiter.limit("30/minute")
 async def send_message(
     request: Request,
     content: str = Form(...),
@@ -55,6 +55,33 @@ async def send_message(
         except (ValueError, json.JSONDecodeError) as e:
             logger.warning(f"전략 업데이트 JSON 파싱 실패: {e}")
 
+    # fallback: 모든 코드 블록에서 전략 JSON 파싱 (```json, ```strategy, ``` 등)
+    if not result.get("parsed_strategy"):
+        import re
+        # 모든 코드 블록 매칭: ```언어\n내용\n``` 또는 ```\n내용\n```
+        code_blocks = re.findall(r'```(?:\w*)\s*\n?(.*?)```', msg_text, re.DOTALL)
+        for block in code_blocks:
+            try:
+                c = json.loads(block.strip())
+                if isinstance(c, dict) and "name" in c and "entry" in c:
+                    result["parsed_strategy"] = c
+                    result["type"] = "strategy_updated"
+                    break
+            except (ValueError, json.JSONDecodeError):
+                continue
+        # 최종 fallback: 코드 블록 없이 JSON이 텍스트에 직접 포함된 경우
+        if not result.get("parsed_strategy"):
+            try:
+                # 첫 번째 { 부터 마지막 } 까지 추출
+                first_brace = msg_text.index('{')
+                last_brace = msg_text.rindex('}')
+                c = json.loads(msg_text[first_brace:last_brace+1])
+                if isinstance(c, dict) and "name" in c and "entry" in c:
+                    result["parsed_strategy"] = c
+                    result["type"] = "strategy_updated"
+            except (ValueError, json.JSONDecodeError):
+                pass
+
     # strategy_id가 있으면 user/AI 메시지를 DB에 저장 (실패해도 응답은 반환)
     if strategy_id:
         try:
@@ -73,7 +100,7 @@ async def send_message(
 
 
 @router.post("/message/image")
-@limiter.limit("5/minute;50/day")
+@limiter.limit("30/minute")
 async def send_message_with_image(
     request: Request,
     content: str = Form(""),
@@ -130,7 +157,7 @@ async def send_message_with_image(
 
 
 @router.post("/message/stream")
-@limiter.limit("10/minute;100/day")
+@limiter.limit("30/minute")
 async def send_message_stream(
     request: Request,
     content: str = Form(...),
@@ -201,6 +228,31 @@ async def send_message_stream(
                 response_type = "strategy_updated"
             except (ValueError, json.JSONDecodeError) as e:
                 logger.warning(f"전략 업데이트 JSON 파싱 실패: {e}")
+
+        # fallback: 모든 코드 블록에서 전략 JSON 파싱
+        if not parsed_strategy:
+            import re
+            code_blocks = re.findall(r'```(?:\w*)\s*\n?(.*?)```', full_text, re.DOTALL)
+            for block in code_blocks:
+                try:
+                    c = json.loads(block.strip())
+                    if isinstance(c, dict) and "name" in c and "entry" in c:
+                        parsed_strategy = c
+                        response_type = "strategy_updated"
+                        break
+                except (ValueError, json.JSONDecodeError):
+                    continue
+            # 최종 fallback: 코드 블록 없이 JSON 직접 포함
+            if not parsed_strategy:
+                try:
+                    fb = full_text.index('{')
+                    lb = full_text.rindex('}')
+                    c = json.loads(full_text[fb:lb+1])
+                    if isinstance(c, dict) and "name" in c and "entry" in c:
+                        parsed_strategy = c
+                        response_type = "strategy_updated"
+                except (ValueError, json.JSONDecodeError):
+                    pass
 
         # 완료 이벤트 (전체 텍스트 + 메타데이터)
         done_data = {"done": True, "type": response_type, "full_text": full_text}

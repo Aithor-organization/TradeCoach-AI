@@ -29,9 +29,16 @@ export interface StopLoss {
   value: number;
 }
 
+export interface TrailingStop {
+  enabled: boolean;
+  trigger_pct: number;
+  callback_pct: number;
+}
+
 export interface Exit {
   take_profit: TakeProfit;
   stop_loss: StopLoss;
+  trailing_stop?: TrailingStop;
 }
 
 export interface Position {
@@ -56,6 +63,10 @@ export interface ParsedStrategy {
   filters: Filters;
   timeframe: string;
   target_pair: string;
+  // 선물 거래 필드
+  leverage?: number;
+  direction?: "long" | "short" | "both";
+  market_type?: "spot" | "futures";
 }
 
 export interface Strategy {
@@ -78,6 +89,17 @@ export interface BacktestMetrics {
   win_rate: number;
   total_trades: number;
   init_cash?: number;
+  // 선물 확장 메트릭
+  cagr?: number;
+  profit_factor?: number;
+  calmar_ratio?: number;
+  avg_win?: number;
+  avg_loss?: number;
+  max_consecutive_losses?: number;
+  long_trades?: number;
+  short_trades?: number;
+  long_win_rate?: number;
+  short_win_rate?: number;
 }
 
 export interface EquityPoint {
@@ -90,6 +112,10 @@ export interface TradeRecord {
   exit_date: string;
   pnl: number;
   return_pct: number;
+  // 선물 확장 필드
+  side?: "long" | "short";
+  exit_reason?: string;
+  leverage?: number;
 }
 
 export interface ActualPeriod {
@@ -112,7 +138,7 @@ export interface BacktestHistoryItem {
   id: string;
   timestamp: Date;
   strategy: ParsedStrategy;
-  result: BacktestResult;
+  result: BacktestResult | null;
   startDate: string;
   endDate: string;
 }

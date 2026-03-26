@@ -25,6 +25,11 @@ class ADX:
     di_minus: float = field(default=0.0)
     adx_value: float = field(default=0.0)
 
+    @property
+    def adx(self) -> float:
+        """ADX 값 (adx_value 별칭)"""
+        return self.adx_value
+
     def __post_init__(self):
         self._adx_ema = EMA(self.period)
 
