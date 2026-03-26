@@ -10,7 +10,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Coroutine, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +48,13 @@ class Job:
         return d
 
 
-# 인메모리 저장소 (서버 재시작 시 초기화됨)
+# 인메모리 저장소
 _jobs: Dict[str, Job] = {}
 _MAX_JOBS = 100
 _JOB_TTL = timedelta(minutes=30)
 
 
 def _cleanup_old_jobs() -> None:
-    """오래된 작업 정리 (30분 초과)"""
     now = datetime.utcnow()
     expired = [
         jid for jid, j in _jobs.items()
@@ -66,10 +65,8 @@ def _cleanup_old_jobs() -> None:
 
 
 def create_job() -> Job:
-    """새 작업 생성"""
     _cleanup_old_jobs()
     if len(_jobs) >= _MAX_JOBS:
-        # 가장 오래된 완료 작업 삭제
         completed = [
             (jid, j) for jid, j in _jobs.items()
             if j.status in (JobStatus.COMPLETED, JobStatus.FAILED)
@@ -85,26 +82,24 @@ def create_job() -> Job:
 
 
 def get_job(job_id: str) -> Optional[Job]:
-    """작업 조회"""
     return _jobs.get(job_id)
 
 
-async def run_job_async(
-    job: Job,
-    func: Callable[..., Any],
-    *args: Any,
-    **kwargs: Any,
-) -> None:
-    """백그라운드에서 동기 함수를 실행하고 결과를 job에 저장"""
-    job.status = JobStatus.RUNNING
-    try:
-        result = await asyncio.to_thread(func, *args, **kwargs)
-        job.result = result
-        job.status = JobStatus.COMPLETED
-        job.completed_at = datetime.utcnow()
-        logger.info("작업 %s 완료", job.id)
-    except Exception as e:
-        job.error = str(e)
-        job.status = JobStatus.FAILED
-        job.completed_at = datetime.utcnow()
-        logger.error("작업 %s 실패: %s", job.id, e, exc_info=True)
+def run_job_in_background(job: Job, coro: Coroutine) -> None:
+    """async 코루틴을 백그라운드 태스크로 실행하고 결과를 job에 저장"""
+
+    async def _wrapper():
+        job.status = JobStatus.RUNNING
+        try:
+            result = await coro
+            job.result = result
+            job.status = JobStatus.COMPLETED
+            job.completed_at = datetime.utcnow()
+            logger.info("작업 %s 완료", job.id)
+        except Exception as e:
+            job.error = str(e)
+            job.status = JobStatus.FAILED
+            job.completed_at = datetime.utcnow()
+            logger.error("작업 %s 실패: %s", job.id, e, exc_info=True)
+
+    asyncio.create_task(_wrapper())

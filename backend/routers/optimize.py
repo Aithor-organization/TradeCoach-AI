@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from models.optimize import OptimizeRequest, WalkForwardRequest
 from dependencies import get_current_user_id
 from routers.auth import limiter
-from services.job_store import create_job, get_job, run_job_async
+from services.job_store import create_job, get_job, run_job_in_background
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -25,12 +25,9 @@ async def run_grid_optimization(
     body: OptimizeRequest,
     user_id: str | None = Depends(get_current_user_id),
 ):
-    """Grid Search 파라미터 최적화 — 백그라운드 작업으로 시작, job_id 반환"""
-    from services.futures.data_loader import download_futures_data
-    from services.futures.optimizer import run_optimization
-
+    """Grid Search 파라미터 최적화 — 즉시 job_id 반환, 백그라운드 실행"""
     try:
-        # 전략 로드
+        # 전략 로드 (빠른 DB 조회만 여기서 수행)
         parsed = body.parsed_strategy
         if not parsed and body.strategy_id != "local":
             from services.supabase_client import get_strategy_by_id
@@ -42,23 +39,27 @@ async def run_grid_optimization(
         if not parsed:
             raise HTTPException(status_code=400, detail="No strategy provided")
 
-        # 데이터 로드 (빠름, 여기서 미리 수행)
-        symbol = body.symbol or parsed.get("target_pair", "BTCUSDT").replace("/", "")
-        bars = await download_futures_data(
-            symbol=symbol, interval=body.interval, days=body.days,
-        )
-
-        if len(bars) < 50:
-            raise HTTPException(status_code=400, detail="Insufficient data")
-
-        # 백그라운드 작업 생성
+        # 즉시 job_id 반환, 데이터 다운로드+연산은 모두 백그라운드
         job = create_job()
-        max_combos = body.max_combinations
+        symbol = body.symbol or parsed.get("target_pair", "BTCUSDT").replace("/", "")
+        interval = body.interval
+        days = body.days
         param_ranges = body.param_ranges
         objective = body.objective
+        max_combos = body.max_combinations
 
-        def _run():
-            results = run_optimization(
+        async def _run_async():
+            from services.futures.data_loader import download_futures_data
+            from services.futures.optimizer import run_optimization
+
+            bars = await download_futures_data(
+                symbol=symbol, interval=interval, days=days,
+            )
+            if len(bars) < 50:
+                raise ValueError("Insufficient data")
+
+            results = await asyncio.to_thread(
+                run_optimization,
                 bars=bars,
                 strategy=parsed,
                 param_ranges=param_ranges,
@@ -72,7 +73,7 @@ async def run_grid_optimization(
                 "objective": objective,
             }
 
-        asyncio.create_task(run_job_async(job, _run))
+        run_job_in_background(job, _run_async())
 
         return {"job_id": job.id, "status": "pending"}
 
@@ -80,7 +81,7 @@ async def run_grid_optimization(
         raise
     except Exception as e:
         logger.error(f"최적화 시작 실패: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="최적화 시작 중 오류")
+        raise HTTPException(status_code=500, detail=f"최적화 시작 중 오류: {e}")
 
 
 @router.post("/walk-forward")
@@ -90,10 +91,7 @@ async def run_walk_forward(
     body: WalkForwardRequest,
     user_id: str | None = Depends(get_current_user_id),
 ):
-    """Walk-Forward 전진분석 — 백그라운드 작업으로 시작, job_id 반환"""
-    from services.futures.data_loader import download_futures_data
-    from services.futures.walk_forward import run_walk_forward
-
+    """Walk-Forward 전진분석 — 즉시 job_id 반환, 백그라운드 실행"""
     try:
         parsed = body.parsed_strategy
         if not parsed and body.strategy_id != "local":
@@ -106,29 +104,32 @@ async def run_walk_forward(
         if not parsed:
             raise HTTPException(status_code=400, detail="No strategy provided")
 
-        # 데이터 로드
-        symbol = body.symbol or parsed.get("target_pair", "BTCUSDT").replace("/", "")
-        bars = await download_futures_data(
-            symbol=symbol, interval=body.interval, days=body.days,
-        )
-
-        min_bars = (body.in_sample_days + body.out_sample_days) * 24
-        if len(bars) < min_bars:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Insufficient data: need {min_bars}+ bars, got {len(bars)}",
-            )
-
-        # 백그라운드 작업 생성
+        # 즉시 job_id 반환
         job = create_job()
+        symbol = body.symbol or parsed.get("target_pair", "BTCUSDT").replace("/", "")
+        interval = body.interval
+        days = body.days
         param_ranges = body.param_ranges or {}
         in_sample_days = body.in_sample_days
         out_sample_days = body.out_sample_days
         windows = body.windows
         objective = body.objective
 
-        def _run():
-            result = run_walk_forward(
+        async def _run_async():
+            from services.futures.data_loader import download_futures_data
+            from services.futures.walk_forward import run_walk_forward as wf_run
+
+            bars = await download_futures_data(
+                symbol=symbol, interval=interval, days=days,
+            )
+            min_bars = (in_sample_days + out_sample_days) * 24
+            if len(bars) < min_bars:
+                raise ValueError(
+                    f"Insufficient data: need {min_bars}+ bars, got {len(bars)}"
+                )
+
+            result = await asyncio.to_thread(
+                wf_run,
                 bars=bars,
                 strategy=parsed,
                 param_ranges=param_ranges,
@@ -139,7 +140,7 @@ async def run_walk_forward(
             )
             return result.to_dict()
 
-        asyncio.create_task(run_job_async(job, _run))
+        run_job_in_background(job, _run_async())
 
         return {"job_id": job.id, "status": "pending"}
 
@@ -147,7 +148,7 @@ async def run_walk_forward(
         raise
     except Exception as e:
         logger.error(f"Walk-Forward 시작 실패: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Walk-Forward 시작 중 오류")
+        raise HTTPException(status_code=500, detail=f"Walk-Forward 시작 중 오류: {e}")
 
 
 @router.get("/job/{job_id}")
