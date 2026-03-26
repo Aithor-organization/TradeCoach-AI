@@ -41,7 +41,7 @@ export default function MarketplaceDetailPage() {
     (async () => {
       try {
         // 전략 기본 정보 조회
-        const token = localStorage.getItem("auth_token");
+        const token = localStorage.getItem("tc_token");
         const res = await fetch(`${API_URL}/strategy/${id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
