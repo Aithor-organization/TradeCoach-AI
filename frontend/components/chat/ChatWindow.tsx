@@ -127,7 +127,9 @@ function MessageBubble({ message, language = "ko" }: { message: ChatMessage; lan
     } catch (e: any) {
       const msg = e?.message || "";
       if (msg.includes("로그인") || msg.includes("401")) {
-        alert(language === "ko" ? "전략을 저장하려면 로그인이 필요합니다." : "Please login to save your strategy.");
+        // 토큰 만료/무효 → 로그아웃 후 로그인 화면으로
+        useAuthStore.getState().logout();
+        alert(language === "ko" ? "세션이 만료되었습니다. 다시 로그인해주세요." : "Session expired. Please login again.");
         router.push("/strategies");
       } else {
         console.error("Save strategy failed:", e);
