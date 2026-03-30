@@ -21,6 +21,15 @@ interface StrategyDetail {
   parsed_strategy: Record<string, unknown>;
   created_at: string;
   onchain: { asset_id: string; strategy_hash: string } | null;
+  marketplace_summary?: string;
+  marketplace_metrics?: {
+    total_sessions: number;
+    total_trades: number;
+    winning_trades: number;
+    win_rate: number;
+    total_pnl: number;
+    avg_session_pnl: number;
+  };
 }
 
 export default function MarketplaceDetailPage() {
@@ -233,7 +242,7 @@ export default function MarketplaceDetailPage() {
 
         {/* 탭 콘텐츠 */}
         {activeTab === "overview" && (
-          <OverviewTab ps={ps} perf={perf} tradeCount={tradeList.length} />
+          <OverviewTab ps={ps} perf={perf} tradeCount={tradeList.length} aiSummary={strategy?.marketplace_summary} mpMetrics={strategy?.marketplace_metrics} />
         )}
 
         {activeTab === "trades" && (
@@ -266,10 +275,12 @@ function StatCard({ label, value, positive }: { label: string; value: string; po
   );
 }
 
-function OverviewTab({ ps, perf, tradeCount }: {
+function OverviewTab({ ps, perf, tradeCount, aiSummary, mpMetrics }: {
   ps: Record<string, unknown>;
   perf: StrategyPerformance | null;
   tradeCount: number;
+  aiSummary?: string;
+  mpMetrics?: StrategyDetail["marketplace_metrics"];
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -384,6 +395,19 @@ function OverviewTab({ ps, perf, tradeCount }: {
           </div>
         )}
       </div>
+
+      {/* AI 분석 보고서 */}
+      {aiSummary && (
+        <div className="md:col-span-2 bg-[#1E293B] rounded-xl border border-[#9945FF20] p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-base">🤖</span>
+            <h3 className="text-sm font-bold">AI Strategy Analysis</h3>
+          </div>
+          <div className="prose prose-sm prose-invert max-w-none text-[#94A3B8] text-xs leading-relaxed whitespace-pre-line">
+            {aiSummary}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

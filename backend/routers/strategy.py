@@ -92,7 +92,7 @@ async def list_public_strategies():
                 _rest_url("strategies"),
                 headers=_headers(),
                 params={
-                    "select": "id,name,parsed_strategy,created_at,status,mint_tx,mint_hash",
+                    "select": "id,name,parsed_strategy,created_at,status,mint_tx,mint_hash,marketplace_summary,marketplace_metrics",
                     "is_public": "eq.true",
                     "order": "created_at.desc",
                     "limit": "50",
@@ -134,8 +134,10 @@ async def publish_to_marketplace(
     strategy_id: str,
     user_id: str | None = Depends(get_current_user_id),
 ):
-    """전략을 마켓플레이스에 공개 등록 (DB 공개 + Anchor 블록체인 등록)"""
+    """전략을 마켓플레이스에 공개 등록 (트레이드 분석 + AI 요약 + DB 공개 + 블록체인 등록)"""
     from services.supabase_client import update_strategy_by_id, get_strategy_by_id
+    import httpx
+    from services.supabase_client import _rest_url, _headers, _is_available
 
     try:
         # 1. 전략 정보 조회
@@ -143,12 +145,75 @@ async def publish_to_marketplace(
         if not strategy:
             raise HTTPException(status_code=404, detail="Strategy not found")
 
-        # 2. DB에서 is_public=true로 설정 (컬럼 없으면 스킵)
-        db_result = None
+        # 2. 트레이드 세션 수집 + 성과 분석 + AI 요약 생성
+        marketplace_metrics = {}
+        marketplace_summary = ""
         try:
-            db_result = await update_strategy_by_id(strategy_id, {"is_public": True})
+            # trade_sessions에서 해당 전략의 모든 세션 조회
+            sessions = []
+            if _is_available():
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    res = await client.get(
+                        _rest_url("trade_sessions"),
+                        headers=_headers(),
+                        params={
+                            "strategy_id": f"eq.{strategy_id}",
+                            "select": "*",
+                            "order": "created_at.desc",
+                            "limit": "50",
+                        },
+                    )
+                    sessions = res.json() if res.status_code == 200 else []
+
+            if sessions:
+                # 성과 지표 집계
+                total_trades = sum(s.get("total_trades", 0) for s in sessions)
+                winning_trades = sum(s.get("winning_trades", 0) for s in sessions)
+                total_pnl = sum(s.get("total_pnl", 0) for s in sessions)
+                win_rate = round(winning_trades / total_trades * 100, 1) if total_trades > 0 else 0
+                avg_pnl = round(total_pnl / len(sessions), 2) if sessions else 0
+
+                marketplace_metrics = {
+                    "total_sessions": len(sessions),
+                    "total_trades": total_trades,
+                    "winning_trades": winning_trades,
+                    "win_rate": win_rate,
+                    "total_pnl": round(total_pnl, 2),
+                    "avg_session_pnl": avg_pnl,
+                }
+
+                # AI 요약 생성 (Gemini)
+                try:
+                    from services.gemini import generate_marketplace_summary
+                    marketplace_summary = await generate_marketplace_summary(
+                        strategy_name=strategy.get("name", ""),
+                        metrics=marketplace_metrics,
+                        sessions=sessions[:10],  # 최근 10개 세션만
+                    )
+                except Exception as e:
+                    logger.warning(f"AI 요약 생성 실패: {e}")
+                    marketplace_summary = (
+                        f"Strategy with {total_trades} trades across {len(sessions)} sessions. "
+                        f"Win rate: {win_rate}%, Total PnL: {total_pnl}%."
+                    )
         except Exception as e:
-            logger.warning(f"is_public 업데이트 스킵 (컬럼 미존재?): {e}")
+            logger.warning(f"트레이드 분석 실패: {e}")
+
+        # 3. DB에서 is_public=true + 마켓플레이스 데이터 저장
+        db_result = None
+        update_data: dict = {"is_public": True}
+        if marketplace_metrics:
+            update_data["marketplace_metrics"] = marketplace_metrics
+        if marketplace_summary:
+            update_data["marketplace_summary"] = marketplace_summary
+        try:
+            db_result = await update_strategy_by_id(strategy_id, update_data)
+        except Exception as e:
+            logger.warning(f"마켓플레이스 데이터 저장 실패: {e}")
+            try:
+                db_result = await update_strategy_by_id(strategy_id, {"is_public": True})
+            except Exception:
+                pass
 
         # 3. Anchor 블록체인에 전략 등록
         anchor_result = None
@@ -176,6 +241,8 @@ async def publish_to_marketplace(
             "strategy_id": strategy_id,
             "is_public": db_result is not None,
             "blockchain": anchor_result,
+            "marketplace_metrics": marketplace_metrics or None,
+            "marketplace_summary": marketplace_summary or None,
             "message": "마켓플레이스에 등록되었습니다" + (
                 f" (TX: {anchor_result.get('tx_signature', 'N/A')})" if anchor_result and not anchor_result.get("error") else ""
             ),

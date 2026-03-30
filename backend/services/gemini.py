@@ -637,6 +637,50 @@ async def process_chat_message_stream(
         ):
             yield chunk
 
+
+async def generate_marketplace_summary(
+    strategy_name: str,
+    metrics: dict,
+    sessions: list,
+) -> str:
+    """트레이드 실적을 분석하여 마켓플레이스용 AI 요약을 생성한다."""
+    prompt = f"""You are a trading strategy analyst. Analyze the following paper trading results
+and write a concise marketplace listing summary (3-5 paragraphs) in English.
+
+Strategy Name: {strategy_name}
+
+Performance Metrics:
+- Total Sessions: {metrics.get('total_sessions', 0)}
+- Total Trades: {metrics.get('total_trades', 0)}
+- Winning Trades: {metrics.get('winning_trades', 0)}
+- Win Rate: {metrics.get('win_rate', 0)}%
+- Total PnL: {metrics.get('total_pnl', 0)}%
+- Avg Session PnL: {metrics.get('avg_session_pnl', 0)}%
+
+Recent Session Details:
+{json.dumps(sessions[:5], indent=2, default=str)}
+
+Write the analysis covering:
+1. **Performance Overview**: Key metrics and what they mean
+2. **Strengths**: What this strategy does well
+3. **Risk Assessment**: Potential risks and drawdowns
+4. **Best Market Conditions**: When this strategy performs best
+5. **Verdict**: Overall recommendation (Aggressive/Moderate/Conservative)
+
+Keep it professional and factual. Do not exaggerate results."""
+
+    try:
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model=settings.gemini_model,
+            contents=[prompt],
+            config=_make_config(temperature=0.5, max_output_tokens=2048),
+        )
+        return response.text.strip() if response and response.text else ""
+    except Exception as e:
+        logger.error(f"마켓플레이스 AI 요약 생성 실패: {e}")
+        return ""
+
     except Exception as e:
         logger.error(f"스트리밍 처리 실패: {e}")
         yield f"Failed to generate AI response. (Error: {type(e).__name__})" if language == "en" else f"AI 응답 생성에 실패했습니다. (오류: {type(e).__name__})"
