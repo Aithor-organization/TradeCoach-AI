@@ -66,8 +66,18 @@ export async function requestAirdrop(address: string, amount = 2) {
 export interface PublicStrategy {
   id: string;
   name: string;
-  parsed_strategy: Record<string, unknown>;
+  parsed_strategy?: Record<string, unknown>;
+  summary?: {
+    timeframe: string;
+    target_pair: string;
+    market_type: string;
+    leverage: number;
+    direction: string;
+    indicator_count: number;
+  };
   created_at: string;
+  status?: string;
+  mint_tx?: string;
   onchain: { asset_id: string; strategy_hash: string } | null;
 }
 

@@ -79,7 +79,7 @@ async def list_strategies(
 
 @router.get("/public")
 async def list_public_strategies():
-    """공개 전략 목록 (마켓플레이스용, 인증 불필요)"""
+    """공개 전략 목록 (마켓플레이스용, 인증 불필요) - 전략 상세는 숨기고 요약만 반환"""
     import httpx
     from services.supabase_client import _rest_url, _headers, _is_available
 
@@ -92,7 +92,7 @@ async def list_public_strategies():
                 _rest_url("strategies"),
                 headers=_headers(),
                 params={
-                    "select": "id,name,parsed_strategy,created_at",
+                    "select": "id,name,parsed_strategy,created_at,status,mint_tx,mint_hash",
                     "is_public": "eq.true",
                     "order": "created_at.desc",
                     "limit": "50",
@@ -100,8 +100,21 @@ async def list_public_strategies():
             )
             strategies = res.json() if res.status_code == 200 else []
 
-            # 온체인 정보 추가
             for s in strategies:
+                # parsed_strategy에서 공개 가능한 요약 정보만 추출, 나머지 숨김
+                ps = s.get("parsed_strategy", {}) or {}
+                s["summary"] = {
+                    "timeframe": ps.get("timeframe", ""),
+                    "target_pair": ps.get("target_pair") or (ps.get("target_pairs", [""])[0] if ps.get("target_pairs") else ""),
+                    "market_type": ps.get("market_type", ""),
+                    "leverage": ps.get("leverage", 1),
+                    "direction": ps.get("direction", "both"),
+                    "indicator_count": len(ps.get("entry", {}).get("conditions", [])),
+                }
+                # 전략 상세 내용 제거 (IP 보호)
+                del s["parsed_strategy"]
+
+                # 온체인 정보 추가
                 onchain_res = await client.get(
                     _rest_url("onchain_strategies"),
                     headers=_headers(),

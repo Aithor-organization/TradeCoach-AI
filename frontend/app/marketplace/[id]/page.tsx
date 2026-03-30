@@ -184,12 +184,7 @@ export default function MarketplaceDetailPage() {
                   </button>
                 </>
               )}
-              <Link
-                href={`/strategies/${id}`}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#0F172A] text-[#22D3EE] border border-[#22D3EE20] hover:bg-[#22D3EE10] transition"
-              >
-                View Full Strategy
-              </Link>
+              {/* 전략 상세는 구매 후에만 공개 */}
             </div>
           </div>
 
@@ -276,56 +271,27 @@ function OverviewTab({ ps, perf, tradeCount }: {
   perf: StrategyPerformance | null;
   tradeCount: number;
 }) {
-  // parsed_strategy 구조 해석
-  const entry = ps.entry as Record<string, unknown> | undefined;
-  const exit = ps.exit as Record<string, unknown> | undefined;
-  const conditions = (entry?.conditions as Array<Record<string, unknown>>) || [];
-  const stopLoss = exit?.stop_loss as Record<string, unknown> | undefined;
-  const takeProfit = exit?.take_profit as Record<string, unknown> | undefined;
-  const trailingStop = exit?.trailing_stop as Record<string, unknown> | undefined;
-
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* 전략 정보 */}
+      {/* 전략 요약 (상세 내용은 숨김) */}
       <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] p-5 space-y-3">
-        <h3 className="text-sm font-bold">Strategy Details</h3>
+        <h3 className="text-sm font-bold">Strategy Overview</h3>
         <div className="space-y-2 text-xs">
-          {/* 진입 조건 */}
-          {conditions.length > 0 && (
-            <div>
-              <div className="text-[#475569] text-[10px] uppercase mb-1">Entry ({String(entry?.logic || "AND")})</div>
-              {conditions.map((c, i) => (
-                <div key={i} className="text-[#94A3B8] pl-2 border-l border-[#22D3EE]/20 mb-0.5 text-[11px]">
-                  <span className="text-[#22D3EE]">{String(c.indicator || "")}</span>{" "}
-                  {String(c.operator || "")} {String(c.value || "")}
-                </div>
-              ))}
-            </div>
-          )}
-          {stopLoss && (
-            <InfoRow label="Stop Loss" value={`${stopLoss.value}%`} />
-          )}
-          {takeProfit && (
-            <InfoRow label="Take Profit" value={`${takeProfit.value}%`} />
-          )}
-          {trailingStop && Boolean(trailingStop.enabled) && (
-            <InfoRow label="Trailing Stop" value={`${trailingStop.trigger_pct}% / ${trailingStop.callback_pct}%`} />
-          )}
-          {Boolean(ps.leverage) && (
-            <InfoRow label="Leverage" value={`${ps.leverage}x`} />
-          )}
-          {Boolean(ps.direction) && (
-            <InfoRow label="Direction" value={String(ps.direction)} />
-          )}
-          {Boolean(ps.timeframe) && (
-            <InfoRow label="Timeframe" value={String(ps.timeframe)} />
-          )}
-          {Boolean(ps.target_pair) && (
-            <InfoRow label="Target Pair" value={String(ps.target_pair)} />
-          )}
-          {Boolean(ps.market_type) && (
-            <InfoRow label="Market" value={String(ps.market_type)} />
-          )}
+          {Boolean(ps.timeframe) && <InfoRow label="Timeframe" value={String(ps.timeframe)} />}
+          {Boolean(ps.target_pair) && <InfoRow label="Target Pair" value={String(ps.target_pair)} />}
+          {Boolean(ps.market_type) && <InfoRow label="Market" value={String(ps.market_type)} />}
+          {Boolean(ps.leverage) && <InfoRow label="Leverage" value={`${ps.leverage}x`} />}
+          {Boolean(ps.direction) && <InfoRow label="Direction" value={String(ps.direction)} />}
+          <InfoRow
+            label="Indicators"
+            value={`${((ps.entry as Record<string, unknown>)?.conditions as unknown[])?.length ?? "?"} conditions`}
+          />
+        </div>
+        <div className="mt-4 p-3 bg-[#0F172A] rounded-lg border border-[#F59E0B20]">
+          <p className="text-[10px] text-[#F59E0B]">
+            Strategy details (entry/exit conditions) are hidden to protect intellectual property.
+            Purchase or rent to access the full strategy.
+          </p>
         </div>
       </div>
 
@@ -345,34 +311,76 @@ function OverviewTab({ ps, perf, tradeCount }: {
                 <span className="text-[#475569]">Period: </span>
                 <span className="text-white font-semibold">{perf.period_days ?? "—"}d</span>
               </div>
+              <div className="bg-[#0F172A] rounded p-2">
+                <span className="text-[#475569]">Max DD: </span>
+                <span className="text-[#EF4444] font-semibold">{perf.max_drawdown}%</span>
+              </div>
+              <div className="bg-[#0F172A] rounded p-2">
+                <span className="text-[#475569]">Total PnL: </span>
+                <span className={`font-semibold ${perf.total_pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                  {perf.total_pnl >= 0 ? "+" : ""}{perf.total_pnl}%
+                </span>
+              </div>
             </div>
           </div>
         ) : (
           <div className="text-xs text-[#475569] py-4 text-center">
-            Run demo trading to see performance analysis
+            No performance data yet. The creator needs to run demo trading.
           </div>
         )}
       </div>
 
-      {/* 거래 요약 */}
+      {/* 거래 요약 + 신뢰도 분석 */}
       <div className="md:col-span-2 bg-[#1E293B] rounded-xl border border-[#22D3EE20] p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold">Trade Summary</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold">Track Record</h3>
           <span className="text-[10px] text-[#475569]">{tradeCount} trades recorded</span>
         </div>
-        {perf && perf.tx_signatures && perf.tx_signatures.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {perf.tx_signatures.slice(0, 5).map((sig, i) => (
-              <a
-                key={i}
-                href={`https://explorer.solana.com/tx/${sig}?cluster=devnet`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] font-mono px-2 py-1 rounded bg-[#0F172A] text-[#22D3EE] hover:bg-[#22D3EE10] transition"
-              >
-                TX #{i + 1}: {sig.slice(0, 12)}...
-              </a>
-            ))}
+        {perf && perf.total_trades > 0 ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-[#0F172A] rounded-lg p-3">
+                <div className="text-lg font-bold text-white">{perf.total_trades}</div>
+                <div className="text-[9px] text-[#475569]">Total Trades</div>
+              </div>
+              <div className="bg-[#0F172A] rounded-lg p-3">
+                <div className={`text-lg font-bold ${perf.win_rate >= 50 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                  {perf.win_rate}%
+                </div>
+                <div className="text-[9px] text-[#475569]">Win Rate</div>
+              </div>
+              <div className="bg-[#0F172A] rounded-lg p-3">
+                <div className={`text-lg font-bold ${perf.total_pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                  {perf.total_pnl >= 0 ? "+" : ""}{perf.total_pnl}%
+                </div>
+                <div className="text-[9px] text-[#475569]">Total PnL</div>
+              </div>
+            </div>
+            {perf.verified && (
+              <div className="flex items-center gap-2 p-2 bg-[#14F195]/10 rounded-lg">
+                <span className="text-[#14F195] text-xs font-semibold">Verified on Solana</span>
+                <span className="text-[9px] text-[#475569]">Track record is immutable and verifiable on-chain</span>
+              </div>
+            )}
+            {perf.tx_signatures && perf.tx_signatures.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {perf.tx_signatures.slice(0, 5).map((sig, i) => (
+                  <a
+                    key={i}
+                    href={`https://explorer.solana.com/tx/${sig}?cluster=devnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-mono px-2 py-1 rounded bg-[#0F172A] text-[#22D3EE] hover:bg-[#22D3EE10] transition"
+                  >
+                    TX #{i + 1}: {sig.slice(0, 12)}...
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-xs text-[#475569] py-4 text-center">
+            No trading records yet. Check the Trade History tab for backtest results.
           </div>
         )}
       </div>
