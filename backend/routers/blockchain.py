@@ -107,26 +107,95 @@ async def verify_strategy_endpoint(
     strategy_id: str,
     user_id: str | None = Depends(get_current_user_id),
 ):
-    """전략 무결성 검증 (DB vs 온체인 해시)"""
-    from services.blockchain import verify_strategy
-    from services.supabase_client import get_strategy_by_id
+    """
+    전략 민팅 검증 — 2단계 폴백.
+
+    1단계: Supabase에서 status 확인 → "verified"이면 즉시 반환
+    2단계: DB에 없으면 Solana RPC에서 TCAI: Memo 트랜잭션 검색
+           → 찾으면 DB에 저장 후 반환
+    """
+    from services.supabase_client import get_strategy_by_id, update_strategy_by_id
 
     try:
         strategy = await get_strategy_by_id(strategy_id)
         if not strategy:
             raise HTTPException(status_code=404, detail="Strategy not found")
 
-        result = await verify_strategy(
-            strategy_id=strategy_id,
-            strategy_json=strategy.get("parsed_strategy", {}),
-            asset_id=strategy.get("asset_id", ""),
-        )
-        return result
+        # 1단계: DB에서 이미 verified인지 확인
+        if strategy.get("status") == "verified":
+            return {
+                "verified": True,
+                "source": "database",
+                "strategy_id": strategy_id,
+                "mint_tx": strategy.get("mint_tx"),
+                "mint_hash": strategy.get("mint_hash"),
+            }
+
+        # 2단계: Solana 블록체인에서 검색
+        import os
+        from services.blockchain.onchain_client import load_server_keypair, SOLANA_AVAILABLE
+
+        if not SOLANA_AVAILABLE:
+            return {"verified": False, "source": "unavailable", "strategy_id": strategy_id}
+
+        keypair = load_server_keypair()
+        if not keypair:
+            return {"verified": False, "source": "no_keypair", "strategy_id": strategy_id}
+
+        rpc_url = os.getenv("SOLANA_RPC_URL", "https://api.devnet.solana.com")
+        network = os.getenv("SOLANA_NETWORK", "devnet")
+
+        from solana.rpc.async_api import AsyncClient
+        async with AsyncClient(rpc_url) as client:
+            sigs_resp = await client.get_signatures_for_address(keypair.pubkey(), limit=100)
+            if not sigs_resp.value:
+                return {"verified": False, "source": "blockchain", "strategy_id": strategy_id}
+
+            # TCAI:{hash}:{strategy_id} 패턴의 Memo 트랜잭션 검색
+            for sig_info in sigs_resp.value:
+                memo_str = str(sig_info.memo) if sig_info.memo else ""
+                if f"TCAI:" in memo_str and strategy_id in memo_str:
+                    tx_sig = str(sig_info.signature)
+                    # Memo에서 해시 추출: "TCAI:{hash}:{strategy_id}"
+                    mint_hash = ""
+                    try:
+                        parts = memo_str.split("TCAI:")[1].split(":")
+                        if len(parts) >= 1:
+                            mint_hash = parts[0]
+                    except Exception:
+                        pass
+
+                    # DB에 verified 상태 저장 (자동 복구)
+                    try:
+                        await update_strategy_by_id(strategy_id, {
+                            "status": "verified",
+                            "mint_tx": tx_sig,
+                            "mint_hash": mint_hash,
+                            "mint_network": network,
+                        })
+                        logger.info(
+                            "전략 %s: 온체인 민팅 발견 → DB 자동 복구 (tx=%s)",
+                            strategy_id, tx_sig[:16],
+                        )
+                    except Exception as e:
+                        logger.warning("DB 자동 복구 실패: %s", e)
+
+                    return {
+                        "verified": True,
+                        "source": "blockchain",
+                        "strategy_id": strategy_id,
+                        "mint_tx": tx_sig,
+                        "mint_hash": mint_hash,
+                        "auto_recovered": True,
+                    }
+
+        return {"verified": False, "source": "blockchain", "strategy_id": strategy_id}
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"검증 실패: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="검증 실패")
+        return {"verified": False, "error": str(e), "strategy_id": strategy_id}
 
 
 @router.post("/signal")

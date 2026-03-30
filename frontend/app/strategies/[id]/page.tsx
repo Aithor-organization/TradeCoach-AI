@@ -9,6 +9,7 @@ import WalkForwardSection from "@/components/strategy/WalkForwardResult";
 import MintNFTButton from "@/components/strategy/MintNFTButton";
 import TimeframePeriodModal, { isPeriodAppropriate } from "@/components/strategy/TimeframePeriodModal";
 import { getStrategy, runBacktest, updateStrategy, forkStrategy, getBacktestHistory, deleteBacktestHistory, deleteStrategy } from "@/lib/api";
+import { verifyStrategy as verifyOnChain } from "@/lib/blockchainApi";
 import StrategyCard from "@/components/chat/StrategyCard";
 import BacktestChart from "@/components/chat/BacktestChart";
 import BacktestResult from "@/components/chat/BacktestResult";
@@ -72,6 +73,16 @@ export default function StrategyDetailPage() {
       try {
         const data = await getStrategy(id);
         setStrategy(data as Strategy);
+
+        // DB에 verified가 아니면 블록체인에서 자동 검증 시도
+        if ((data as Strategy).status !== "verified" && !isExample) {
+          verifyOnChain(id).then((res) => {
+            if (res.verified) {
+              setStrategy(prev => prev ? { ...prev, status: "verified" } : prev);
+            }
+          }).catch(() => { /* 검증 실패 시 무시 - 민팅 안 된 전략 */ });
+        }
+
         // 투자금 초기값: 전략의 size_value
         const ps = (data as Strategy).parsed_strategy;
         if (ps?.position?.size_value) {
