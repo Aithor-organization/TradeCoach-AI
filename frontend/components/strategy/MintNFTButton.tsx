@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
+import { WalletReadyState } from "@solana/wallet-adapter-base";
 import { prepareMintStrategy } from "@/lib/blockchainApi";
 import { updateStrategy } from "@/lib/api";
 import { buildMemoTransaction, confirmTransaction, getExplorerUrl } from "@/lib/solanaUtils";
@@ -17,7 +18,7 @@ interface MintNFTButtonProps {
 }
 
 export default function MintNFTButton({ strategyId, strategy, status: initialStatus }: MintNFTButtonProps) {
-  const { publicKey, connected, sendTransaction } = useWallet();
+  const { publicKey, connected, sendTransaction, select, wallets } = useWallet();
   const { connection } = useConnection();
   const { language } = useLanguageStore();
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,19 @@ export default function MintNFTButton({ strategyId, strategy, status: initialSta
 
   const handleMint = async () => {
     if (!connected || !publicKey || !sendTransaction) {
-      setError(t("bc.connectWalletFirst", language));
+      // 지갑 미연결 시 Phantom 자동 연결 시도
+      const phantom = wallets.find(
+        (w) =>
+          w.adapter.name === "Phantom" &&
+          (w.readyState === WalletReadyState.Installed ||
+           w.readyState === WalletReadyState.Loadable)
+      );
+      if (phantom) {
+        try { select(phantom.adapter.name); } catch { /* 사용자 취소 */ }
+      } else {
+        window.open("https://phantom.app/", "_blank");
+        setError(t("bc.connectWalletFirst", language));
+      }
       return;
     }
 
@@ -108,7 +121,7 @@ export default function MintNFTButton({ strategyId, strategy, status: initialSta
     <div>
       <button
         onClick={handleMint}
-        disabled={loading || !connected}
+        disabled={loading}
         className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-[#9945FF] to-[#14F195] text-white cursor-pointer hover:opacity-90 disabled:opacity-50 transition"
       >
         {loading ? (
