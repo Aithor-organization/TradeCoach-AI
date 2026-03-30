@@ -87,15 +87,13 @@ export default function VersionHistory({ strategyId, currentStatus, onRestore, r
                     TX
                   </a>
                 )}
-                {currentStatus !== "verified" && (
-                  <button
-                    onClick={() => handleRestore(v.id)}
-                    disabled={restoring === v.id}
-                    className="text-[9px] px-2 py-0.5 rounded bg-[#9945FF20] text-[#9945FF] hover:bg-[#9945FF30] disabled:opacity-50 cursor-pointer transition"
-                  >
-                    {restoring === v.id ? "..." : "Restore"}
-                  </button>
-                )}
+                <button
+                  onClick={() => handleRestore(v.id)}
+                  disabled={restoring === v.id}
+                  className="text-[9px] px-2 py-0.5 rounded bg-[#9945FF20] text-[#9945FF] hover:bg-[#9945FF30] disabled:opacity-50 cursor-pointer transition"
+                >
+                  {restoring === v.id ? "..." : "Restore"}
+                </button>
               </div>
             </div>
           ))}
