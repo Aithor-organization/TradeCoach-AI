@@ -175,7 +175,9 @@ def run_walk_forward(
             strategy=strategy,
             param_ranges=param_ranges,
             objective=objective,
+            max_combinations=60,
             top_n=1,
+            search_method="random",
         )
         if not opt_results:
             logger.warning("윈도우 %d: 최적화 결과 없음. 건너뜀.", idx)

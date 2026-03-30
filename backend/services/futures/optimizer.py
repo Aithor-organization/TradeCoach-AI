@@ -91,7 +91,7 @@ def run_grid_search(
     param_ranges: Dict[str, List[Any]],
     bars: List[OhlcvBar],
     objective: str = "composite",
-    max_combinations: int = 500,
+    max_combinations: int = 200,
     top_n: int = 10,
     max_workers: int = 0,
 ) -> List[Dict[str, Any]]:
@@ -101,22 +101,11 @@ def run_grid_search(
     Args:
         strategy:        기본 전략 딕셔너리 (내부에서 deepcopy, 원본 불변)
         param_ranges:    파라미터 이름 → 탐색 값 목록 매핑
-                         예: {"leverage": [5, 10, 20],
-                              "exit.take_profit.value": [1.0, 1.5, 2.0],
-                              "indicators.RSI.period": [9, 14]}
-        bars:            백테스트용 OHLCV 데이터 (호출자가 로드하여 전달)
-        objective:       최적화 기준 ("sharpe", "calmar", "profit_factor",
-                         "composite", "total_return")
-        max_combinations: 탐색 최대 조합 수 (데카르트 곱을 이 수로 제한)
+        bars:            백테스트용 OHLCV 데이터
+        objective:       최적화 기준
+        max_combinations: 탐색 최대 조합 수
         top_n:           반환할 상위 결과 수
         max_workers:     병렬 스레드 수
-
-    Returns:
-        상위 top_n 결과 리스트. 각 항목:
-        {"rank": int, "score": float, "params": dict, "metrics": dict}
-
-    Raises:
-        ValueError: 잘못된 입력값
     """
     if not param_ranges:
         raise ValueError("param_ranges가 비어 있습니다.")
@@ -130,7 +119,6 @@ def run_grid_search(
         )
     resolved_obj = _OBJECTIVE_MAP[obj_key]
 
-    # --- 데카르트 곱 조합 생성 (max_combinations 상한) ---
     keys = list(param_ranges.keys())
     combos: List[Dict[str, Any]] = [
         dict(zip(keys, combo))
@@ -141,11 +129,141 @@ def run_grid_search(
     if not combos:
         return []
 
-    # --- 병렬 백테스트 (CPU 코어 수 자동 감지) ---
+    return _parallel_evaluate(strategy, combos, bars, resolved_obj, top_n, max_workers)
+
+
+def run_random_search(
+    strategy: Dict[str, Any],
+    param_ranges: Dict[str, List[Any]],
+    bars: List[OhlcvBar],
+    objective: str = "composite",
+    max_combinations: int = 80,
+    top_n: int = 10,
+    max_workers: int = 0,
+    patience: int = 30,
+) -> List[Dict[str, Any]]:
+    """
+    Random Search + Early Stopping 파라미터 최적화.
+
+    Grid Search보다 같은 예산으로 더 넓은 탐색 공간을 커버한다.
+    patience 조합 연속으로 최고 점수 개선이 없으면 조기 종료한다.
+
+    Args:
+        patience: 개선 없이 허용되는 연속 조합 수 (기본 30)
+    """
+    import random
+
+    if not param_ranges:
+        raise ValueError("param_ranges가 비어 있습니다.")
+    if not bars:
+        raise ValueError("bars 데이터가 없습니다.")
+
+    obj_key = objective.lower()
+    if obj_key not in _OBJECTIVE_MAP:
+        raise ValueError(
+            f"지원하지 않는 objective '{objective}'. 사용 가능: {list(_OBJECTIVE_MAP)}"
+        )
+    resolved_obj = _OBJECTIVE_MAP[obj_key]
+
+    # 전체 조합 수 계산
+    keys = list(param_ranges.keys())
+    total_possible = 1
+    for v in param_ranges.values():
+        if isinstance(v, list):
+            total_possible *= len(v)
+
+    # 전체 조합이 max_combinations 이하면 그냥 grid search
+    if total_possible <= max_combinations:
+        logger.info("전체 조합(%d) <= 예산(%d): Grid Search로 전환", total_possible, max_combinations)
+        return run_grid_search(
+            strategy=strategy, param_ranges=param_ranges, bars=bars,
+            objective=objective, max_combinations=total_possible,
+            top_n=top_n, max_workers=max_workers,
+        )
+
+    # 랜덤 샘플링 (중복 제거)
+    all_values = [param_ranges[k] for k in keys]
+    seen = set()
+    combos: List[Dict[str, Any]] = []
+    attempts = 0
+    max_attempts = max_combinations * 3  # 중복 방지를 위한 여유
+
+    while len(combos) < max_combinations and attempts < max_attempts:
+        combo_tuple = tuple(random.choice(vals) for vals in all_values)
+        if combo_tuple not in seen:
+            seen.add(combo_tuple)
+            combos.append(dict(zip(keys, combo_tuple)))
+        attempts += 1
+
+    logger.info(
+        "Random Search: %d개 샘플 (전체 가능: %d, patience=%d)",
+        len(combos), total_possible, patience,
+    )
+
+    if not combos:
+        return []
+
+    # 배치 단위로 실행 + Early Stopping
+    batch_size = min(20, len(combos))
+    all_results: List[Dict[str, Any]] = []
+    best_score = float("-inf")
+    no_improve_count = 0
+
+    for batch_start in range(0, len(combos), batch_size):
+        batch = combos[batch_start:batch_start + batch_size]
+        batch_results = _parallel_evaluate(
+            strategy, batch, bars, resolved_obj, top_n=len(batch), max_workers=max_workers,
+        )
+        all_results.extend(batch_results)
+
+        # 현재 배치 최고 점수 확인
+        batch_best = max((r["score"] for r in batch_results), default=float("-inf"))
+        if batch_best > best_score:
+            best_score = batch_best
+            no_improve_count = 0
+        else:
+            no_improve_count += len(batch)
+
+        tested = batch_start + len(batch)
+        logger.info(
+            "Random Search 진행: %d/%d 완료, 최고=%.4f, 연속미개선=%d",
+            tested, len(combos), best_score, no_improve_count,
+        )
+
+        # Early Stopping
+        if no_improve_count >= patience:
+            logger.info(
+                "Early Stopping: %d개 연속 미개선 (patience=%d). %d/%d에서 중단.",
+                no_improve_count, patience, tested, len(combos),
+            )
+            break
+
+    # 정렬 후 상위 N개
+    all_results.sort(key=lambda r: r["score"], reverse=True)
+    return [
+        {
+            "rank": idx + 1,
+            "score": round(entry["score"], 6),
+            "params": entry["params"],
+            "metrics": entry["metrics"],
+        }
+        for idx, entry in enumerate(all_results[:top_n])
+    ]
+
+
+def _parallel_evaluate(
+    strategy: dict,
+    combos: List[Dict[str, Any]],
+    bars: List[OhlcvBar],
+    resolved_obj: str,
+    top_n: int,
+    max_workers: int = 0,
+) -> List[Dict[str, Any]]:
+    """조합 목록을 병렬로 백테스트하고 상위 결과 반환."""
     import os
     effective_workers = max_workers if max_workers > 0 else min(os.cpu_count() or 4, 8)
     results: List[Dict[str, Any]] = []
-    logger.info("병렬 스레드: %d (CPU: %s)", effective_workers, os.cpu_count())
+
     with ThreadPoolExecutor(max_workers=effective_workers) as pool:
         futures = {
             pool.submit(_run_one, strategy, combo, bars, resolved_obj): combo
@@ -155,12 +273,9 @@ def run_grid_search(
             result = fut.result()
             if result is not None and result["score"] != float("-inf"):
                 results.append(result)
-            if done % 100 == 0:
+            if done % 50 == 0:
                 logger.info("진행: %d/%d 완료, 유효 %d개", done, len(combos), len(results))
 
-    logger.info("최적화 완료: 유효 %d/%d 조합", len(results), len(combos))
-
-    # --- 목적 함수 기준 내림차순 정렬 후 상위 N개 반환 ---
     results.sort(key=lambda r: r["score"], reverse=True)
     return [
         {
@@ -179,15 +294,17 @@ def run_optimization(
     strategy: dict,
     param_ranges: dict,
     objective: str = "sharpe",
-    max_combinations: int = 100,
+    max_combinations: int = 80,
     top_n: int = 10,
+    search_method: str = "random",
 ) -> list:
-    """run_grid_search의 API 호환 래퍼"""
-    return run_grid_search(
-        strategy=strategy,
-        param_ranges=param_ranges,
-        bars=bars,
-        objective=objective,
-        max_combinations=max_combinations,
-        top_n=top_n,
+    """최적화 진입점. search_method로 grid/random 선택."""
+    if search_method == "grid":
+        return run_grid_search(
+            strategy=strategy, param_ranges=param_ranges, bars=bars,
+            objective=objective, max_combinations=max_combinations, top_n=top_n,
+        )
+    return run_random_search(
+        strategy=strategy, param_ranges=param_ranges, bars=bars,
+        objective=objective, max_combinations=max_combinations, top_n=top_n,
     )

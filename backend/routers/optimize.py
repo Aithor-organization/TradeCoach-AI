@@ -47,6 +47,7 @@ async def run_grid_optimization(
         param_ranges = body.param_ranges
         objective = body.objective
         max_combos = body.max_combinations
+        search_method = body.search_method
 
         async def _run_async():
             from services.futures.data_loader import download_futures_data
@@ -66,11 +67,13 @@ async def run_grid_optimization(
                 objective=objective,
                 max_combinations=max_combos,
                 top_n=10,
+                search_method=search_method,
             )
             return {
                 "results": results,
                 "total_tested": min(max_combos, _count_combinations(param_ranges)),
                 "objective": objective,
+                "search_method": search_method,
             }
 
         run_job_in_background(job, _run_async())
