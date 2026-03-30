@@ -670,7 +670,7 @@ Write the analysis covering:
 Keep it professional and factual. Do not exaggerate results."""
 
     # 마켓플레이스 요약은 경량 모델 사용 (비용 절감)
-    lite_model = "gemini-2.5-flash-lite-preview-06-17"
+    lite_model = "gemini-3.1-flash-lite-preview"
     try:
         response = await asyncio.to_thread(
             client.models.generate_content,
