@@ -43,7 +43,9 @@ async def save_strategy(
     body: StrategySave,
     user_id: Optional[str] = Depends(get_current_user_id),
 ):
-    """파싱된 전략을 DB에 저장 (로그인 시 user_id 자동 연결)"""
+    """파싱된 전략을 DB에 저장 (로그인 필수)"""
+    if not user_id:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다. 전략을 저장하려면 먼저 로그인해주세요.")
     from services.supabase_client import save_strategy as db_save
 
     try:
