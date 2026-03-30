@@ -326,13 +326,14 @@ export default function StrategyChatPanel({ strategyId, strategy, onStrategyUpda
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-[#1E293B] rounded-lg px-3 py-2 border border-[#22D3EE08]">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-mono font-bold text-[#22D3EE]">AI</span>
-                <div className="flex gap-1">
-                  <span className="w-1 h-1 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-1 h-1 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-1 h-1 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "300ms" }} />
+            <div className="bg-[#1E293B] rounded-lg px-4 py-3 border border-[#22D3EE15]">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold text-[#22D3EE]">TradeCoach AI</span>
+                <span className="text-[10px] text-[#94A3B8]">analyzing...</span>
+                <div className="flex gap-1 ml-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#22D3EE] animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               </div>
             </div>
