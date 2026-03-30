@@ -7,6 +7,7 @@ import AuthGuard from "@/components/common/AuthGuard";
 import OptimizeModal from "@/components/strategy/OptimizeModal";
 import WalkForwardSection from "@/components/strategy/WalkForwardResult";
 import MintNFTButton from "@/components/strategy/MintNFTButton";
+import VersionHistory from "@/components/strategy/VersionHistory";
 import TimeframePeriodModal, { isPeriodAppropriate } from "@/components/strategy/TimeframePeriodModal";
 import { getStrategy, runBacktest, updateStrategy, forkStrategy, getBacktestHistory, deleteBacktestHistory, deleteStrategy } from "@/lib/api";
 import { verifyStrategy as verifyOnChain } from "@/lib/blockchainApi";
@@ -783,6 +784,14 @@ export default function StrategyDetailPage() {
                   {t("help.learnMore", language)}
                 </Link>
               </div>
+            )}
+
+            {/* 민팅 버전 히스토리 */}
+            {!isExample && (
+              <VersionHistory
+                strategyId={id}
+                currentStatus={strategy?.status}
+              />
             )}
 
             {/* 백테스트 결과 */}

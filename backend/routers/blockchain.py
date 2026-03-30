@@ -65,10 +65,13 @@ async def confirm_mint(
     body: ConfirmMintRequest,
     user_id: str | None = Depends(get_current_user_id),
 ):
-    """민팅 트랜잭션 확인 후 전략 status를 verified로 업데이트"""
-    from services.supabase_client import update_strategy_by_id
+    """민팅 트랜잭션 확인 후 전략 status를 verified로 업데이트 + 버전 스냅샷 저장"""
+    from services.supabase_client import (
+        update_strategy_by_id, get_strategy_by_id, save_strategy_version,
+    )
 
     try:
+        # 1. 전략 status 업데이트
         updated = await update_strategy_by_id(strategy_id, {
             "status": "verified",
             "mint_tx": body.tx_signature,
@@ -77,6 +80,23 @@ async def confirm_mint(
         })
         if not updated:
             raise HTTPException(status_code=404, detail="Strategy not found")
+
+        # 2. 민팅 시점의 전략을 버전 스냅샷으로 보존
+        strategy = await get_strategy_by_id(strategy_id)
+        if strategy and strategy.get("parsed_strategy"):
+            version = await save_strategy_version(
+                strategy_id=strategy_id,
+                parsed_strategy=strategy["parsed_strategy"],
+                mint_tx=body.tx_signature,
+                mint_hash=body.strategy_hash,
+                mint_network=body.network,
+                label=strategy.get("name", ""),
+            )
+            logger.info(
+                "전략 %s: 버전 스냅샷 저장 (v%s)",
+                strategy_id, version.get("version") if version else "?",
+            )
+
         return {"strategy_id": strategy_id, "status": "verified", "tx_signature": body.tx_signature}
     except HTTPException:
         raise

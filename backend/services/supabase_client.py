@@ -575,6 +575,95 @@ async def link_backtest_to_strategy(backtest_id: str, strategy_id: str) -> bool:
         return res.status_code in (200, 204)
 
 
+async def save_strategy_version(
+    strategy_id: str,
+    parsed_strategy: dict,
+    mint_tx: str = "",
+    mint_hash: str = "",
+    mint_network: str = "devnet",
+    label: str = "",
+) -> Optional[dict]:
+    """민팅 시점의 전략 스냅샷을 strategy_versions에 저장"""
+    if not _is_available():
+        return None
+    try:
+        # 현재 최대 버전 번호 조회
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                _rest_url("strategy_versions"),
+                headers=_headers(),
+                params={
+                    "strategy_id": f"eq.{strategy_id}",
+                    "select": "version",
+                    "order": "version.desc",
+                    "limit": "1",
+                },
+            )
+            existing = res.json() if res.status_code == 200 else []
+            next_version = (existing[0]["version"] + 1) if existing else 1
+
+            # 스냅샷 저장
+            res = await client.post(
+                _rest_url("strategy_versions"),
+                headers=_headers(),
+                json={
+                    "strategy_id": strategy_id,
+                    "version": next_version,
+                    "parsed_strategy": parsed_strategy,
+                    "mint_tx": mint_tx,
+                    "mint_hash": mint_hash,
+                    "mint_network": mint_network,
+                    "label": label or f"v{next_version}",
+                },
+            )
+            if res.status_code in (200, 201) and res.json():
+                return res.json()[0]
+            logger.warning(f"strategy_version 저장 실패: {res.status_code} {res.text}")
+            return None
+    except Exception as e:
+        logger.warning(f"save_strategy_version 예외: {e}")
+        return None
+
+
+async def get_strategy_versions(strategy_id: str) -> list:
+    """전략의 모든 민팅 버전 조회 (최신순)"""
+    if not _is_available():
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                _rest_url("strategy_versions"),
+                headers=_headers(),
+                params={
+                    "strategy_id": f"eq.{strategy_id}",
+                    "select": "id,version,label,mint_tx,mint_hash,mint_network,created_at",
+                    "order": "version.desc",
+                },
+            )
+            return res.json() if res.status_code == 200 else []
+    except Exception as e:
+        logger.warning(f"get_strategy_versions 예외: {e}")
+        return []
+
+
+async def get_strategy_version(version_id: str) -> Optional[dict]:
+    """특정 버전의 전략 스냅샷 조회 (parsed_strategy 포함)"""
+    if not _is_available():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                _rest_url("strategy_versions"),
+                headers=_headers(),
+                params={"id": f"eq.{version_id}", "select": "*"},
+            )
+            data = res.json() if res.status_code == 200 else []
+            return data[0] if data else None
+    except Exception as e:
+        logger.warning(f"get_strategy_version 예외: {e}")
+        return None
+
+
 async def delete_backtest_by_id(backtest_id: str) -> bool:
     if not _is_available():
         return False

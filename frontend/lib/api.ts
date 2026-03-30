@@ -160,6 +160,28 @@ export async function updateStrategy(id: string, updates: Record<string, unknown
   });
 }
 
+// 전략 버전 관리
+export interface StrategyVersion {
+  id: string;
+  version: number;
+  label: string;
+  mint_tx: string | null;
+  mint_hash: string | null;
+  mint_network: string;
+  created_at: string;
+}
+
+export async function getStrategyVersions(strategyId: string) {
+  return fetcher<{ versions: StrategyVersion[] }>(`/strategy/${strategyId}/versions`);
+}
+
+export async function restoreStrategyVersion(strategyId: string, versionId: string) {
+  return fetcher<{ restored: boolean; version: number; label: string }>(
+    `/strategy/${strategyId}/restore/${versionId}`,
+    { method: "POST" },
+  );
+}
+
 export async function publishToMarketplace(strategyId: string) {
   return fetcher<{
     strategy_id: string;

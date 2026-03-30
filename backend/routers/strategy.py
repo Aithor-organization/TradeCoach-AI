@@ -276,6 +276,63 @@ async def update_strategy(
         raise HTTPException(status_code=500, detail="전략 수정 중 오류가 발생했습니다.")
 
 
+@router.get("/{strategy_id}/versions")
+async def get_strategy_versions(
+    strategy_id: str,
+    user_id: Optional[str] = Depends(get_current_user_id),
+):
+    """전략의 민팅 버전 히스토리 조회"""
+    from services.supabase_client import get_strategy_versions as db_get_versions
+
+    try:
+        versions = await db_get_versions(strategy_id)
+        return {"versions": versions}
+    except Exception as e:
+        logger.error(f"버전 조회 실패: {e}", exc_info=True)
+        return {"versions": []}
+
+
+@router.post("/{strategy_id}/restore/{version_id}")
+async def restore_strategy_version(
+    strategy_id: str,
+    version_id: str,
+    user_id: Optional[str] = Depends(get_current_user_id),
+):
+    """민팅된 버전으로 전략 되돌리기"""
+    from services.supabase_client import get_strategy_version, update_strategy_by_id
+
+    try:
+        if user_id:
+            await _verify_strategy_owner(strategy_id, user_id)
+
+        version = await get_strategy_version(version_id)
+        if not version:
+            raise HTTPException(status_code=404, detail="Version not found")
+        if version.get("strategy_id") != strategy_id:
+            raise HTTPException(status_code=403, detail="Version does not belong to this strategy")
+
+        updated = await update_strategy_by_id(strategy_id, {
+            "parsed_strategy": version["parsed_strategy"],
+            "status": "verified",
+            "mint_tx": version.get("mint_tx"),
+            "mint_hash": version.get("mint_hash"),
+            "mint_network": version.get("mint_network", "devnet"),
+        })
+        if not updated:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+
+        return {
+            "restored": True,
+            "version": version.get("version"),
+            "label": version.get("label"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"버전 복원 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="버전 복원 실패")
+
+
 @router.delete("/{strategy_id}")
 async def delete_strategy(
     strategy_id: str,
