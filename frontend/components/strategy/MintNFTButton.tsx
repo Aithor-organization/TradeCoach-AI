@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { WalletReadyState } from "@solana/wallet-adapter-base";
@@ -24,6 +24,11 @@ export default function MintNFTButton({ strategyId, strategy, status: initialSta
   const [result, setResult] = useState<{ hash: string; signature: string; network: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [minted, setMinted] = useState(initialStatus === "verified");
+
+  // props 변경 시 minted 상태 동기화 (전략 수정 → status "draft"로 리셋)
+  useEffect(() => {
+    setMinted(initialStatus === "verified");
+  }, [initialStatus]);
 
   const handleMint = async () => {
     if (!connected || !publicKey || !sendTransaction) {
