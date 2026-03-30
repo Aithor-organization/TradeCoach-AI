@@ -77,6 +77,9 @@ export interface Strategy {
   input_type: "text" | "image" | "paste";
   parsed_strategy: ParsedStrategy;
   status: "draft" | "tested" | "verified";
+  mint_tx?: string;
+  mint_hash?: string;
+  mint_network?: string;
   created_at: string;
   updated_at: string;
 }

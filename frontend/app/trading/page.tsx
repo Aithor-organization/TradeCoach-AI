@@ -12,7 +12,8 @@ import DemoTradeLog from "@/components/trading/DemoTradeLog";
 import SignalIndicator from "@/components/trading/SignalIndicator";
 import { startDemo, stopDemo, getDemoStatus } from "@/lib/tradingApi";
 import type { DemoTrade, DemoStatus, SignalRecording } from "@/lib/tradingApi";
-import { getStrategies, publishToMarketplace } from "@/lib/api";
+import { getStrategies, getStrategyVersions, publishToMarketplace } from "@/lib/api";
+import type { StrategyVersion } from "@/lib/api";
 import { getStrategyPerformance, getStrategyTxHistory } from "@/lib/blockchainApi";
 import type { StrategyPerformance, OnchainTxRecord } from "@/lib/blockchainApi";
 import type { Strategy } from "@/lib/types";
@@ -41,15 +42,44 @@ export default function TradingPage() {
   const [publishing, setPublishing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // 전략 목록 로드
+  // 전략 목록 로드 (민팅 버전 포함)
   useEffect(() => {
     (async () => {
       try {
         const res = await getStrategies() as { strategies: Strategy[] };
         const list = res?.strategies || [];
-        setStrategies(list);
-        const minted = list.filter(s => s.status === "verified");
-        if (minted.length > 0) setSelectedStrategy(minted[0]);
+
+        // 각 전략의 민팅 버전을 조회하여 개별 항목으로 추가
+        const allItems: Strategy[] = [];
+        for (const s of list) {
+          // 현재 전략 (verified이면 추가)
+          if (s.status === "verified") {
+            allItems.push({ ...s, name: `${s.name} (latest)` });
+          }
+          // 이전 민팅 버전 조회
+          try {
+            const vRes = await getStrategyVersions(s.id);
+            const versions = vRes?.versions || [];
+            for (const v of versions) {
+              // 현재 전략과 같은 해시면 스킵 (중복 방지)
+              if (s.status === "verified" && s.mint_hash === v.mint_hash) continue;
+              allItems.push({
+                ...s,
+                id: s.id, // 같은 strategy_id 유지
+                name: `${v.label || s.name} (v${v.version})`,
+                status: "verified",
+                mint_tx: v.mint_tx || undefined,
+                _versionId: v.id, // 버전 식별용
+              } as Strategy & { _versionId?: string });
+            }
+          } catch { /* 버전 조회 실패 무시 */ }
+        }
+
+        // 민팅 안 된 전략도 목록에 포함 (비활성 상태)
+        const nonMinted = list.filter(s => s.status !== "verified" && !allItems.some(a => a.id === s.id));
+        setStrategies([...allItems, ...nonMinted]);
+
+        if (allItems.length > 0) setSelectedStrategy(allItems[0]);
         else if (list.length > 0) setSelectedStrategy(list[0]);
       } catch { /* 로그인 안 된 경우 */ }
       finally { setLoadingStrategies(false); }
