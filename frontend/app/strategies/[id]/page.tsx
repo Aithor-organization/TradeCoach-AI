@@ -54,6 +54,9 @@ export default function StrategyDetailPage() {
   // 타임프레임-기간 검증 모달
   const [showPeriodModal, setShowPeriodModal] = useState(false);
 
+  // 민팅 완료 시 버전 히스토리 갱신용 키
+  const [versionRefreshKey, setVersionRefreshKey] = useState(0);
+
   // 가져오기 모달
   const [showImportModal, setShowImportModal] = useState(false);
   const [importName, setImportName] = useState("");
@@ -778,6 +781,10 @@ export default function StrategyDetailPage() {
                     strategyId={id}
                     strategy={currentViewStrategy}
                     status={strategy?.status}
+                    onMintComplete={() => {
+                      setStrategy(prev => prev ? { ...prev, status: "verified" } : prev);
+                      setVersionRefreshKey(k => k + 1);
+                    }}
                   />
                 </div>
                 <Link href="/learn" className="text-[10px] text-[#475569] hover:text-[#22D3EE] transition">
@@ -791,6 +798,7 @@ export default function StrategyDetailPage() {
               <VersionHistory
                 strategyId={id}
                 currentStatus={strategy?.status}
+                refreshKey={versionRefreshKey}
               />
             )}
 

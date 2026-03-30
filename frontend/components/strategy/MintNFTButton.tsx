@@ -14,9 +14,10 @@ interface MintNFTButtonProps {
   strategyId: string;
   strategy: ParsedStrategy;
   status?: string;
+  onMintComplete?: () => void;
 }
 
-export default function MintNFTButton({ strategyId, strategy, status: initialStatus }: MintNFTButtonProps) {
+export default function MintNFTButton({ strategyId, strategy, status: initialStatus, onMintComplete }: MintNFTButtonProps) {
   const { publicKey, connected, sendTransaction, select, wallets } = useWallet();
   const { connection } = useConnection();
   const { language } = useLanguageStore();
@@ -80,6 +81,7 @@ export default function MintNFTButton({ strategyId, strategy, status: initialSta
           signature,
           network: res.network,
         });
+        onMintComplete?.();
       } else {
         setError(t("bc.mintFailed", language));
       }

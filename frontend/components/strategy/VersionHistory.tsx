@@ -8,9 +8,10 @@ interface VersionHistoryProps {
   strategyId: string;
   currentStatus?: string;
   onRestore?: () => void;
+  refreshKey?: number;
 }
 
-export default function VersionHistory({ strategyId, currentStatus, onRestore }: VersionHistoryProps) {
+export default function VersionHistory({ strategyId, currentStatus, onRestore, refreshKey = 0 }: VersionHistoryProps) {
   const [versions, setVersions] = useState<StrategyVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState<string | null>(null);
@@ -19,9 +20,12 @@ export default function VersionHistory({ strategyId, currentStatus, onRestore }:
   useEffect(() => {
     if (!strategyId || strategyId.startsWith("example-")) return;
     getStrategyVersions(strategyId)
-      .then((res) => setVersions(res.versions || []))
+      .then((res) => {
+        setVersions(res.versions || []);
+        if (refreshKey > 0) setExpanded(true);
+      })
       .catch(() => {});
-  }, [strategyId]);
+  }, [strategyId, refreshKey]);
 
   if (versions.length === 0) return null;
 
