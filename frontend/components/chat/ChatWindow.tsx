@@ -124,8 +124,14 @@ function MessageBubble({ message, language = "ko" }: { message: ChatMessage; lan
 
         router.push(`/strategies/${result.id}`);
       }
-    } catch (e) {
-      console.error("Save strategy failed:", e);
+    } catch (e: any) {
+      const msg = e?.message || "";
+      if (msg.includes("로그인") || msg.includes("401")) {
+        alert(language === "ko" ? "전략을 저장하려면 로그인이 필요합니다." : "Please login to save your strategy.");
+        router.push("/strategies");
+      } else {
+        console.error("Save strategy failed:", e);
+      }
     } finally {
       setIsSaving(false);
     }
