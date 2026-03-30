@@ -65,25 +65,48 @@ async def confirm_mint(
     body: ConfirmMintRequest,
     user_id: str | None = Depends(get_current_user_id),
 ):
-    """민팅 트랜잭션 확인 후 전략 status를 verified로 업데이트 + 버전 스냅샷 저장"""
+    """민팅 트랜잭션 확인 → 새 전략 생성 (민팅된 전략은 독립 행) + 원본 status 유지"""
     from services.supabase_client import (
         update_strategy_by_id, get_strategy_by_id, save_strategy_version,
+        save_strategy as db_save,
     )
 
     try:
-        # 1. 전략 status 업데이트
-        updated = await update_strategy_by_id(strategy_id, {
+        strategy = await get_strategy_by_id(strategy_id)
+        if not strategy:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+
+        # 1. 민팅된 전략을 새 행으로 생성 (fork)
+        minted_strategy = None
+        if strategy.get("parsed_strategy"):
+            try:
+                minted_strategy = await db_save(
+                    user_id=user_id or strategy.get("user_id"),
+                    name=f"{strategy.get('name', 'Strategy')} (Minted)",
+                    raw_input=strategy.get("raw_input", ""),
+                    input_type=strategy.get("input_type", "text"),
+                    parsed_strategy=strategy["parsed_strategy"],
+                )
+                if minted_strategy:
+                    await update_strategy_by_id(minted_strategy["id"], {
+                        "status": "verified",
+                        "mint_tx": body.tx_signature,
+                        "mint_hash": body.strategy_hash,
+                        "mint_network": body.network,
+                    })
+            except Exception as e:
+                logger.warning(f"민팅 전략 fork 실패: {e}")
+
+        # 2. 원본 전략도 verified로 업데이트
+        await update_strategy_by_id(strategy_id, {
             "status": "verified",
             "mint_tx": body.tx_signature,
             "mint_hash": body.strategy_hash,
             "mint_network": body.network,
         })
-        if not updated:
-            raise HTTPException(status_code=404, detail="Strategy not found")
 
-        # 2. 민팅 시점의 전략을 버전 스냅샷으로 보존
-        strategy = await get_strategy_by_id(strategy_id)
-        if strategy and strategy.get("parsed_strategy"):
+        # 3. 버전 스냅샷도 저장 (히스토리용)
+        if strategy.get("parsed_strategy"):
             version = await save_strategy_version(
                 strategy_id=strategy_id,
                 parsed_strategy=strategy["parsed_strategy"],
@@ -97,7 +120,12 @@ async def confirm_mint(
                 strategy_id, version.get("version") if version else "?",
             )
 
-        return {"strategy_id": strategy_id, "status": "verified", "tx_signature": body.tx_signature}
+        return {
+            "strategy_id": strategy_id,
+            "minted_strategy_id": minted_strategy["id"] if minted_strategy else strategy_id,
+            "status": "verified",
+            "tx_signature": body.tx_signature,
+        }
     except HTTPException:
         raise
     except Exception as e:
