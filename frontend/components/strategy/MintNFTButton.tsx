@@ -4,8 +4,7 @@ import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { WalletReadyState } from "@solana/wallet-adapter-base";
-import { prepareMintStrategy } from "@/lib/blockchainApi";
-import { updateStrategy } from "@/lib/api";
+import { prepareMintStrategy, confirmMint } from "@/lib/blockchainApi";
 import { buildMemoTransaction, confirmTransaction, getExplorerUrl } from "@/lib/solanaUtils";
 import { useLanguageStore } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
@@ -64,11 +63,11 @@ export default function MintNFTButton({ strategyId, strategy, status: initialSta
       const confirmed = await confirmTransaction(connection, signature);
 
       if (confirmed) {
-        // DB에 민팅 상태 업데이트
+        // 백엔드에 민팅 완료 확인 → DB에 verified 상태 저장
         try {
-          await updateStrategy(strategyId, { status: "verified" });
+          await confirmMint(strategyId, signature, res.strategy_hash, res.network);
         } catch (err) {
-          console.warn("Failed to update strategy status:", err);
+          console.warn("Failed to confirm mint status:", err);
         }
         setMinted(true);
         setResult({

@@ -53,6 +53,38 @@ async def mint_strategy(
         raise HTTPException(status_code=500, detail=f"민팅 실패: {str(e)}")
 
 
+class ConfirmMintRequest(BaseModel):
+    tx_signature: str
+    strategy_hash: str
+    network: str = "devnet"
+
+
+@router.post("/strategy/{strategy_id}/confirm-mint")
+async def confirm_mint(
+    strategy_id: str,
+    body: ConfirmMintRequest,
+    user_id: str | None = Depends(get_current_user_id),
+):
+    """민팅 트랜잭션 확인 후 전략 status를 verified로 업데이트"""
+    from services.supabase_client import update_strategy_by_id
+
+    try:
+        updated = await update_strategy_by_id(strategy_id, {
+            "status": "verified",
+            "mint_tx": body.tx_signature,
+            "mint_hash": body.strategy_hash,
+            "mint_network": body.network,
+        })
+        if not updated:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        return {"strategy_id": strategy_id, "status": "verified", "tx_signature": body.tx_signature}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"민팅 확인 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="민팅 상태 업데이트 실패")
+
+
 @router.post("/strategy/{strategy_id}/burn")
 async def burn_strategy(
     strategy_id: str,

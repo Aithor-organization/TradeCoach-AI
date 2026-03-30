@@ -27,6 +27,17 @@ export async function prepareMintStrategy(strategyId: string, parsedStrategy: Re
   });
 }
 
+// 민팅 트랜잭션 확인 → DB에 verified 상태 저장
+export async function confirmMint(strategyId: string, txSignature: string, strategyHash: string, network: string) {
+  return fetcher<{ strategy_id: string; status: string; tx_signature: string }>(
+    `/blockchain/strategy/${strategyId}/confirm-mint`,
+    {
+      method: "POST",
+      body: JSON.stringify({ tx_signature: txSignature, strategy_hash: strategyHash, network }),
+    },
+  );
+}
+
 // 전략 무결성 검증
 export async function verifyStrategy(strategyId: string) {
   return fetcher<{
