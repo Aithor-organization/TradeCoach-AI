@@ -669,17 +669,29 @@ Write the analysis covering:
 
 Keep it professional and factual. Do not exaggerate results."""
 
+    # 마켓플레이스 요약은 경량 모델 사용 (비용 절감)
+    lite_model = "gemini-2.5-flash-lite-preview-06-17"
     try:
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model=settings.gemini_model,
+            model=lite_model,
             contents=[prompt],
             config=_make_config(temperature=0.5, max_output_tokens=2048),
         )
         return response.text.strip() if response and response.text else ""
     except Exception as e:
-        logger.error(f"마켓플레이스 AI 요약 생성 실패: {e}")
-        return ""
+        logger.warning(f"Lite 모델 실패, 기본 모델로 폴백: {e}")
+        try:
+            response = await asyncio.to_thread(
+                client.models.generate_content,
+                model=settings.gemini_model,
+                contents=[prompt],
+                config=_make_config(temperature=0.5, max_output_tokens=2048),
+            )
+            return response.text.strip() if response and response.text else ""
+        except Exception as e2:
+            logger.error(f"마켓플레이스 AI 요약 생성 실패: {e2}")
+            return ""
 
     except Exception as e:
         logger.error(f"스트리밍 처리 실패: {e}")
