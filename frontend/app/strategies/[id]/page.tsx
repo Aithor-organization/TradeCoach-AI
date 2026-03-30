@@ -762,21 +762,17 @@ export default function StrategyDetailPage() {
                       <p>{t("help.wfDesc", language)}</p>
                     </div>
                   </div>
-                  {/* 이미 민팅된 전략이면 민트 버튼 숨김 */}
-                  {strategy?.status !== "verified" && (
-                    <MintNFTButton
-                      strategyId={id}
-                      strategy={currentViewStrategy}
-                      status={
-                        // 히스토리에서 수정된 버전이거나 이전 버전을 보고 있으면 draft
-                        (history.length > 0 && history[selectedIndex]?.result === null)
-                          ? "draft"
-                          : (currentViewStrategy === strategy?.parsed_strategy)
-                            ? strategy?.status
-                            : "draft"
-                      }
-                    />
-                  )}
+                  <MintNFTButton
+                    strategyId={id}
+                    strategy={currentViewStrategy}
+                    status={
+                      (history.length > 0 && history[selectedIndex]?.result === null)
+                        ? "draft"
+                        : (currentViewStrategy === strategy?.parsed_strategy)
+                          ? strategy?.status
+                          : "draft"
+                    }
+                  />
                 </div>
                 <Link href="/learn" className="text-[10px] text-[#475569] hover:text-[#22D3EE] transition">
                   {t("help.learnMore", language)}
