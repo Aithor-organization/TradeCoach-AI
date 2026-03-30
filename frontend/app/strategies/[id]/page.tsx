@@ -776,13 +776,7 @@ export default function StrategyDetailPage() {
                   <MintNFTButton
                     strategyId={id}
                     strategy={currentViewStrategy}
-                    status={
-                      (history.length > 0 && history[selectedIndex]?.result === null)
-                        ? "draft"
-                        : (currentViewStrategy === strategy?.parsed_strategy)
-                          ? strategy?.status
-                          : "draft"
-                    }
+                    status={strategy?.status}
                   />
                 </div>
                 <Link href="/learn" className="text-[10px] text-[#475569] hover:text-[#22D3EE] transition">
