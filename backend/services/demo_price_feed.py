@@ -80,6 +80,25 @@ def evaluate_simple_signal(strategy: Dict[str, Any], klines: list) -> Optional[s
         return None
 
 
+def _calc_required_bars(strategy_config: Dict[str, Any]) -> int:
+    """전략의 지표에서 필요한 최소 봉 수를 계산."""
+    max_period = 100  # 기본값
+    entry = strategy_config.get("entry", {})
+    for cond in entry.get("conditions", []):
+        indicator = cond.get("indicator", "")
+        params = cond.get("params", {})
+        # ema_N, sma_N 패턴 (예: ema_200)
+        for prefix in ("ema_", "sma_"):
+            if indicator.startswith(prefix) and indicator[len(prefix):].isdigit():
+                max_period = max(max_period, int(indicator[len(prefix):]))
+        # params에서 period 추출
+        for key in ("period", "long_period", "slow_period", "rsi_period", "stoch_period"):
+            if key in params:
+                max_period = max(max_period, int(params[key]))
+    # 20% 여유 + 최소 200
+    return max(max_period + max(50, int(max_period * 0.2)), 200)
+
+
 async def run_price_feed(
     session_id: str,
     engine,
@@ -94,10 +113,13 @@ async def run_price_feed(
     포지션이 없으면 신호를 평가하여 자동 진입한다.
     """
     symbol = engine.session.symbol
-    logger.info(f"가격 피드 시작: {session_id} ({symbol})")
+    required_bars = _calc_required_bars(strategy_config)
+    # Binance klines API 최대 1500개
+    kline_limit = min(required_bars, 1500)
+    logger.info(f"가격 피드 시작: {session_id} ({symbol}), 필요 봉 수: {kline_limit}")
 
     # 초기 klines 로드
-    klines = await fetch_recent_klines(symbol, "1m", 100)
+    klines = await fetch_recent_klines(symbol, "1m", kline_limit)
 
     while session_id in sessions_ref:
         entry = sessions_ref.get(session_id)
@@ -130,7 +152,7 @@ async def run_price_feed(
 
             # 주기적으로 klines 갱신 (30초마다)
             if now_ms % 30000 < int(interval_sec * 1000):
-                new_klines = await fetch_recent_klines(symbol, "1m", 100)
+                new_klines = await fetch_recent_klines(symbol, "1m", kline_limit)
                 if new_klines:
                     klines = new_klines
 
