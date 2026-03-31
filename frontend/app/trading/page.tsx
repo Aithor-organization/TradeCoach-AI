@@ -39,6 +39,13 @@ export default function TradingPage() {
   const [loadingTxs, setLoadingTxs] = useState(false);
   const [showStopModal, setShowStopModal] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [publishResult, setPublishResult] = useState<{
+    strategy_id: string;
+    is_public: boolean;
+    marketplace_metrics?: { total_sessions: number; total_trades: number; win_rate: number; total_pnl: number };
+    marketplace_summary?: string;
+    blockchain?: { tx_signature?: string; explorer_url?: string; network?: string; error?: string };
+  } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // 전략 목록 로드 (민팅된 전략은 각각 별도 행으로 존재)
@@ -170,10 +177,7 @@ export default function TradingPage() {
     setPublishing(true);
     try {
       const result = await publishToMarketplace(selectedStrategy.id);
-      const txInfo = result.blockchain?.tx_signature
-        ? `\nTX: ${result.blockchain.tx_signature.slice(0, 20)}...`
-        : "";
-      alert((language === "ko" ? "마켓플레이스에 등록되었습니다!" : "Published to marketplace!") + txInfo);
+      setPublishResult(result as typeof publishResult);
     } catch (e) {
       alert(`Failed: ${e instanceof Error ? e.message : "Unknown error"}`);
     } finally {
@@ -644,6 +648,80 @@ export default function TradingPage() {
                 className="w-full py-2 text-[10px] text-[#475569] hover:text-[#94A3B8] transition"
               >
                 {language === "ko" ? "취소" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Publish 결과 모달 */}
+        {publishResult && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-[#1E293B] rounded-xl border border-[#9945FF30] p-6 max-w-md w-full mx-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="text-lg">🏪</span>
+                  {language === "ko" ? "마켓플레이스 등록 완료" : "Published to Marketplace"}
+                </h3>
+                <button onClick={() => setPublishResult(null)} className="text-[#475569] hover:text-white text-lg">x</button>
+              </div>
+
+              {/* 성과 메트릭 */}
+              {publishResult.marketplace_metrics && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-[#0F172A] rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-[#475569]">{language === "ko" ? "총 거래" : "Total Trades"}</p>
+                    <p className="text-sm font-bold text-white">{publishResult.marketplace_metrics.total_trades}</p>
+                  </div>
+                  <div className="bg-[#0F172A] rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-[#475569]">{language === "ko" ? "승률" : "Win Rate"}</p>
+                    <p className="text-sm font-bold text-[#22C55E]">{publishResult.marketplace_metrics.win_rate}%</p>
+                  </div>
+                  <div className="bg-[#0F172A] rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-[#475569]">{language === "ko" ? "총 PnL" : "Total PnL"}</p>
+                    <p className={`text-sm font-bold ${publishResult.marketplace_metrics.total_pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                      {publishResult.marketplace_metrics.total_pnl >= 0 ? "+" : ""}{publishResult.marketplace_metrics.total_pnl}%
+                    </p>
+                  </div>
+                  <div className="bg-[#0F172A] rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-[#475569]">{language === "ko" ? "세션 수" : "Sessions"}</p>
+                    <p className="text-sm font-bold text-white">{publishResult.marketplace_metrics.total_sessions}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* AI 요약 */}
+              {publishResult.marketplace_summary && (
+                <div className="bg-[#0F172A] rounded-lg p-3">
+                  <p className="text-[10px] text-[#9945FF] font-semibold mb-1 flex items-center gap-1">
+                    <span>🤖</span> AI Strategy Analysis
+                  </p>
+                  <p className="text-xs text-[#94A3B8] leading-relaxed whitespace-pre-line">
+                    {publishResult.marketplace_summary}
+                  </p>
+                </div>
+              )}
+
+              {/* 블록체인 TX */}
+              {publishResult.blockchain?.tx_signature && (
+                <div className="bg-[#0F172A] rounded-lg p-3">
+                  <p className="text-[10px] text-[#22D3EE] font-semibold mb-1">Blockchain Record</p>
+                  <a
+                    href={publishResult.blockchain.explorer_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-[#9945FF] hover:underline break-all"
+                  >
+                    TX: {publishResult.blockchain.tx_signature.slice(0, 24)}...
+                  </a>
+                  <span className="text-[9px] text-[#475569] ml-2">({publishResult.blockchain.network})</span>
+                </div>
+              )}
+
+              <button
+                onClick={() => setPublishResult(null)}
+                className="w-full py-2.5 text-xs font-semibold rounded-lg bg-[#9945FF]/20 text-[#9945FF] border border-[#9945FF]/30 hover:bg-[#9945FF]/30 transition"
+              >
+                {language === "ko" ? "확인" : "Close"}
               </button>
             </div>
           </div>
