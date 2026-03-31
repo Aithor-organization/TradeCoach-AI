@@ -1,6 +1,6 @@
 """JSON structured logging middleware: timestamp, method, path, status, duration_ms, user_id, ip"""
 import json, logging, time
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 logger = logging.getLogger("tradecoach.access")
 

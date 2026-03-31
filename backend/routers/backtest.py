@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from models.backtest import BacktestRequest
-from dependencies import require_auth, get_current_user_id
+from dependencies import get_current_user_id
 from routers.auth import limiter
 from pydantic import BaseModel
 from typing import Optional

@@ -1,8 +1,8 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from models.strategy import StrategyCreate, StrategyResponse, StrategySave, StrategyUpdate
-from dependencies import get_current_user_id, require_auth
+from models.strategy import StrategyCreate, StrategySave, StrategyUpdate
+from dependencies import get_current_user_id
 from typing import Optional
 
 router = APIRouter()

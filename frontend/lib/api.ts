@@ -24,6 +24,12 @@ async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
+    // 401: 토큰 만료 → 자동 로그아웃
+    if (res.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("tc_token");
+      const { useAuthStore } = await import("@/stores/authStore");
+      useAuthStore.getState().logout();
+    }
     const error = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(error.detail || "API Error");
   }

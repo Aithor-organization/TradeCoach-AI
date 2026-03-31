@@ -1,7 +1,7 @@
 """JWT 인증 의존성 모듈"""
 import time
 import logging
-from fastapi import Depends, HTTPException, Header
+from fastapi import HTTPException, Header
 from typing import Optional
 from jose import jwt, JWTError, ExpiredSignatureError
 from config import get_settings
