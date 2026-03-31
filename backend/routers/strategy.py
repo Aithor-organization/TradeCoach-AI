@@ -129,6 +129,35 @@ async def list_public_strategies():
         return {"strategies": []}
 
 
+@router.get("/public/{strategy_id}")
+async def get_public_strategy(strategy_id: str):
+    """공개 전략 상세 (마켓플레이스 상세 페이지용, 인증 불필요, IP 보호)"""
+    from services.supabase_client import get_strategy_by_id
+
+    strategy = await get_strategy_by_id(strategy_id)
+    if not strategy:
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    if not strategy.get("is_public"):
+        raise HTTPException(status_code=403, detail="비공개 전략입니다.")
+
+    # parsed_strategy에서 공개 가능한 요약만 추출 (IP 보호)
+    ps = strategy.get("parsed_strategy", {}) or {}
+    strategy["summary"] = {
+        "timeframe": ps.get("timeframe", ""),
+        "target_pair": ps.get("target_pair") or (ps.get("target_pairs", [""])[0] if ps.get("target_pairs") else ""),
+        "market_type": ps.get("market_type", ""),
+        "leverage": ps.get("leverage", 1),
+        "direction": ps.get("direction", "both"),
+        "indicator_count": len(ps.get("entry", {}).get("conditions", [])),
+    }
+    # 전략 상세 제거
+    strategy.pop("parsed_strategy", None)
+    strategy.pop("raw_input", None)
+    strategy.pop("user_id", None)
+
+    return strategy
+
+
 @router.post("/{strategy_id}/publish")
 async def publish_to_marketplace(
     strategy_id: str,

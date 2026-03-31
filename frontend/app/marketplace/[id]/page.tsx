@@ -49,11 +49,8 @@ export default function MarketplaceDetailPage() {
     if (!id) return;
     (async () => {
       try {
-        // 전략 기본 정보 조회
-        const token = localStorage.getItem("tc_token");
-        const res = await fetch(`${API_URL}/strategy/${id}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        // 전략 기본 정보 조회 (공개 API, 인증 불필요, IP 보호)
+        const res = await fetch(`${API_URL}/strategy/public/${id}`);
         if (res.ok) setStrategy(await res.json());
 
         // 병렬로 성과 + 거래 히스토리 + TX 히스토리 조회
