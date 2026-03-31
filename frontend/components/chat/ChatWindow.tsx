@@ -14,11 +14,9 @@ import TradeLogTable from "./TradeLogTable";
 import type { Language } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
 import type { ChatMessage, BacktestResult as BacktestResultType } from "@/lib/types";
-import { useToast } from "@/components/common/Toast";
 
 export default function ChatWindow({ onExampleClick, language = "ko" }: { onExampleClick?: (text: string) => void; language?: Language } = {}) {
   const { messages, isLoading } = useChatStore();
-  const { showToast } = useToast();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -134,12 +132,12 @@ function MessageBubble({ message, language = "ko" }: { message: ChatMessage; lan
         alert(language === "ko" ? "세션이 만료되었습니다. 다시 로그인해주세요." : "Session expired. Please login again.");
         router.push("/strategies");
       } else {
-        showToast("Failed to save strategy", "error");
+        alert("Failed to save strategy");
       }
     } finally {
       setIsSaving(false);
     }
-  }, [message, router, allMessages, showToast, language]);
+  }, [message, router, allMessages, language]);
 
   const handleRunBacktest = useCallback(async () => {
     const strategy = message.metadata?.parsed_strategy;
