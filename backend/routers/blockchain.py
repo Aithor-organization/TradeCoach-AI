@@ -7,7 +7,6 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional
 from dependencies import get_current_user_id
-from routers.auth import limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -464,7 +463,6 @@ async def verify_merkle_proof_endpoint(body: MerkleVerifyRequest):
 @router.get("/tx/{tx_signature}")
 async def verify_transaction(tx_signature: str):
     """TX signature로 온체인 기록 검증"""
-    from services.blockchain.solana_client import get_rpc_client
     import os
 
     try:

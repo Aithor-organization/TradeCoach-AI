@@ -11,7 +11,6 @@ Merkle root만 Solana에 기록. 개별 신호는 Merkle proof로 검증 가능.
 import hashlib
 import json
 import math
-from typing import Optional
 
 
 def _sha256(data: bytes) -> bytes:

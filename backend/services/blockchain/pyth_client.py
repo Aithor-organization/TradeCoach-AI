@@ -1,7 +1,7 @@
 """Pyth Oracle dual-price verification: 5-step validation (staleness, confidence, price>0, status, 1e8)"""
 import time, logging, httpx
 from dataclasses import dataclass
-from typing import Optional, Dict
+from typing import Dict
 logger = logging.getLogger(__name__)
 
 @dataclass

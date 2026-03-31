@@ -11,7 +11,6 @@ Supports ALL indicators defined in strategy_parser.py:
   - DDIF: ddif, maddif
 """
 
-import math
 from typing import List, Optional, Dict, Any
 
 from .data_loader import OhlcvBar

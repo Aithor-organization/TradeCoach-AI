@@ -6,7 +6,7 @@ Includes: MDD, CAGR, Sharpe, Calmar, Profit Factor, Win Rate, etc.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import List, Optional
 import math
 
 

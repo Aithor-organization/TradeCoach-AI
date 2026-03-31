@@ -4,9 +4,8 @@ Type definitions for futures trading.
 Strategy configuration, position management, and order types.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, List
 
 
 class Side(str, Enum):

@@ -11,8 +11,7 @@ import logging
 import time
 from typing import Optional
 
-from .onchain_client import load_server_keypair, record_trades_onchain, SOLANA_AVAILABLE
-from .merkle_tree import build_trade_merkle, verify_merkle_proof, compute_leaf
+from .onchain_client import load_server_keypair, SOLANA_AVAILABLE
 
 logger = logging.getLogger(__name__)
 

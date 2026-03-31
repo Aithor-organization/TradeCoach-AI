@@ -1,7 +1,7 @@
 """Backtest Task Manager — asyncio-based in-memory task registry with auto-cleanup"""
 import asyncio, uuid, logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)

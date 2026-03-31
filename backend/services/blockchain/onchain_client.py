@@ -15,14 +15,12 @@ from typing import Optional
 
 try:
     from solana.rpc.async_api import AsyncClient
-    from solana.rpc.commitment import Confirmed
     from solders.keypair import Keypair  # type: ignore
     from solders.pubkey import Pubkey  # type: ignore
     from solders.system_program import ID as SYSTEM_PROGRAM_ID  # type: ignore
     from solders.transaction import Transaction  # type: ignore
     from solders.message import Message  # type: ignore
     from solders.instruction import Instruction, AccountMeta  # type: ignore
-    from solders.hash import Hash  # type: ignore
     SOLANA_AVAILABLE = True
 except ImportError:
     SOLANA_AVAILABLE = False

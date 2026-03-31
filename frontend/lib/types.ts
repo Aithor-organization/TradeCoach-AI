@@ -67,6 +67,12 @@ export interface ParsedStrategy {
   leverage?: number;
   direction?: "long" | "short" | "both";
   market_type?: "spot" | "futures";
+  target_pairs?: string[];
+  futures?: {
+    enabled?: boolean;
+    leverage?: number;
+    direction?: "long" | "short" | "both";
+  };
 }
 
 export interface Strategy {

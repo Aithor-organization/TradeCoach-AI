@@ -11,12 +11,9 @@ Helius DAS API로 조회/검증합니다.
 import hashlib
 import json
 import logging
-import os
 from typing import Optional
 
 try:
-    from solders.pubkey import Pubkey  # type: ignore
-    from solana.rpc.async_api import AsyncClient
     SOLANA_AVAILABLE = True
 except ImportError:
     SOLANA_AVAILABLE = False

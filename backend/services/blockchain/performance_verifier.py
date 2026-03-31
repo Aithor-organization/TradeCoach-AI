@@ -1,7 +1,7 @@
 """Independent strategy performance verification (StrategyVault pattern)"""
 import logging
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional
 logger = logging.getLogger(__name__)
 
 VERIFY_CRITERIA = {"min_signals":100, "min_days":90, "min_signals_per_week":2, "min_verifications":3}

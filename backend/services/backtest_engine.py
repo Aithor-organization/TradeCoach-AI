@@ -7,7 +7,6 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-import sys
 try:
     import coverage
     if not hasattr(coverage, 'types'):

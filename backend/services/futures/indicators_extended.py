@@ -49,7 +49,6 @@ from __future__ import annotations
 
 import numpy as np
 from numpy import ndarray
-from typing import Union
 
 # ---------------------------------------------------------------------------
 # Helpers

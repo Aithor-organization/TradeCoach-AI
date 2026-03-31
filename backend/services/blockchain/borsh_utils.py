@@ -7,7 +7,6 @@ struct 모듈로 Borsh 바이너리 직렬화를 수행.
 
 import struct
 from dataclasses import dataclass
-from typing import Optional
 
 try:
     from solders.pubkey import Pubkey  # type: ignore

@@ -270,7 +270,7 @@ export default function TradingPage() {
                 {mintedStrategies.map(s => {
                   const ps = s.parsed_strategy;
                   const isSelected = selectedStrategy?.id === s.id;
-                  const sLeverage = (ps as any)?.futures?.leverage || ps?.leverage;
+                  const sLeverage = ps?.futures?.leverage || ps?.leverage;
                   const entryCount = ps?.entry?.conditions?.length || 0;
                   return (
                     <button
@@ -328,8 +328,8 @@ export default function TradingPage() {
                 {/* 선택된 전략 상세 정보 */}
                 {selectedStrategy && (() => {
                   const ps = selectedStrategy.parsed_strategy;
-                  const isFutures = (ps as any)?.futures?.enabled || ps?.market_type === "futures";
-                  const leverage = (ps as any)?.futures?.leverage || ps?.leverage;
+                  const isFutures = ps?.futures?.enabled || ps?.market_type === "futures";
+                  const leverage = ps?.futures?.leverage || ps?.leverage;
                   return (
                     <div className="bg-[#1E293B] rounded-xl mb-4 border border-[#22D3EE20] overflow-hidden">
                       {/* 헤더 */}
@@ -407,13 +407,13 @@ export default function TradingPage() {
                         )}
 
                         {/* 방향 */}
-                        {((ps as any)?.futures?.direction || ps?.direction) && (
+                        {(ps?.futures?.direction || ps?.direction) && (
                           <div>
                             <div className="text-[#475569] font-semibold mb-1 text-[10px] uppercase tracking-wider">
                               {language === "ko" ? "방향" : "Direction"}
                             </div>
                             <div className="text-[#94A3B8]">
-                              {((ps as any)?.futures?.direction || ps?.direction) === "both" ? "Long / Short" : ((ps as any)?.futures?.direction || ps?.direction)}
+                              {(ps?.futures?.direction || ps?.direction) === "both" ? "Long / Short" : (ps?.futures?.direction || ps?.direction)}
                             </div>
                           </div>
                         )}
@@ -513,7 +513,7 @@ export default function TradingPage() {
                       isActive={isActive}
                       isLoading={isLoading}
                       defaultSymbol="SOLUSDT"
-                      defaultLeverage={(selectedStrategy?.parsed_strategy as any)?.futures?.leverage || selectedStrategy?.parsed_strategy?.leverage || 10}
+                      defaultLeverage={selectedStrategy?.parsed_strategy?.futures?.leverage || selectedStrategy?.parsed_strategy?.leverage || 10}
                       defaultBalance={1000}
                     />
                     <PositionCard

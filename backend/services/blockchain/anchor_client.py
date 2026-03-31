@@ -6,7 +6,6 @@ Tier 2 구현: IDL 기반 Borsh 직렬화로 Anchor instruction을 구성하여
 """
 
 import logging
-import os
 import struct
 from typing import Optional
 
@@ -25,7 +24,6 @@ from .borsh_utils import (
 
 if SOLANA_AVAILABLE:
     from solana.rpc.async_api import AsyncClient
-    from solders.keypair import Keypair  # type: ignore
     from solders.pubkey import Pubkey  # type: ignore
     from solders.system_program import ID as SYSTEM_PROGRAM_ID  # type: ignore
     from solders.transaction import Transaction  # type: ignore

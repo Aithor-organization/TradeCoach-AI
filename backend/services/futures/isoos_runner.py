@@ -7,7 +7,7 @@ a plain-language recommendation.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 
 from .data_loader import OhlcvBar
 from .types import FuturesConfig
