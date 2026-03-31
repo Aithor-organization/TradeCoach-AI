@@ -11,6 +11,7 @@ import Skeleton from "@/components/common/Skeleton";
 import OnboardingBanner from "@/components/common/OnboardingBanner";
 import AppHeader from "@/components/layout/AppHeader";
 import { useLanguageStore } from "@/stores/languageStore";
+import { useAuthStore } from "@/stores/authStore";
 import { t } from "@/lib/i18n";
 
 type Tab = "examples" | "my";
@@ -22,8 +23,11 @@ export default function StrategiesPage() {
   const [activeTab, setActiveTab] = useState<Tab>("my");
 
   const { language } = useLanguageStore();
+  const { isAuthenticated } = useAuthStore();
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+    setLoading(true);
     getStrategies()
       .then((data: unknown) => {
         const d = data as { strategies?: Strategy[] };
@@ -32,7 +36,7 @@ export default function StrategiesPage() {
       })
       .catch(() => setStrategies([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isAuthenticated]);
 
   const exampleStrategies = strategies.filter(s => s.id.startsWith("example-"));
   const myStrategies = strategies.filter(s => !s.id.startsWith("example-"));
