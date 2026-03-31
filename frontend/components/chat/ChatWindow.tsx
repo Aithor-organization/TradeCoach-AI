@@ -14,9 +14,11 @@ import TradeLogTable from "./TradeLogTable";
 import type { Language } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
 import type { ChatMessage, BacktestResult as BacktestResultType } from "@/lib/types";
+import { useToast } from "@/components/common/Toast";
 
 export default function ChatWindow({ onExampleClick, language = "ko" }: { onExampleClick?: (text: string) => void; language?: Language } = {}) {
   const { messages, isLoading } = useChatStore();
+  const { showToast } = useToast();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
