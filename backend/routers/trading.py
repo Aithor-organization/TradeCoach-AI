@@ -119,9 +119,11 @@ async def stop_demo(
             from services.blockchain.signal_recorder import record_signal, flush_signals_to_chain
 
             for trade in engine.session.trades:
+                # 4종 신호 → signal_recorder 타입 매핑
+                sr_entry_type = "long_entry" if trade.side == "long" else "short_entry"
                 entry_result = await record_signal(
                     strategy_nft_id=strategy_nft_id,
-                    signal_type=f"{trade.side}_entry",
+                    signal_type=sr_entry_type,
                     symbol=engine.session.symbol,
                     price=trade.entry_price,
                     leverage=trade.leverage,
@@ -171,8 +173,10 @@ async def stop_demo(
 
     # 세션 결과 + 개별 거래를 DB에 영속화
     trades_data = [
-        {"side": t.side, "entry_price": t.entry_price, "exit_price": t.exit_price,
-         "pnl": round(t.pnl, 2), "exit_reason": t.exit_reason}
+        {"side": t.side, "signal_type": t.signal_type,
+         "entry_price": t.entry_price, "exit_price": t.exit_price,
+         "pnl": round(t.pnl, 2), "pnl_pct": round(t.pnl_pct, 2),
+         "fee": round(t.fee, 4), "exit_reason": t.exit_reason}
         for t in engine.session.trades
     ]
     try:
@@ -219,9 +223,12 @@ async def stop_demo(
         "trades": [
             {
                 "side": t.side,
+                "signal_type": t.signal_type,
                 "entry_price": t.entry_price,
                 "exit_price": t.exit_price,
                 "pnl": round(t.pnl, 2),
+                "pnl_pct": round(t.pnl_pct, 2),
+                "fee": round(t.fee, 4),
                 "exit_reason": t.exit_reason,
             }
             for t in engine.session.trades
@@ -253,21 +260,24 @@ async def demo_status(
 
     engine = entry["engine"]
     status = engine.get_status(current_price)
-    # 마지막 신호 정보 추가
+    # 마지막 신호 정보 추가 (4종 → 프론트 호환 매핑)
     pos = engine.session.position
     if pos:
-        status["last_signal"] = pos.side
+        status["last_signal"] = pos.side  # "long" or "short"
     elif engine._pending_signal:
-        status["last_signal"] = engine._pending_signal
+        status["last_signal"] = engine._pending_signal  # 4종 신호
     else:
         status["last_signal"] = "wait"
     # 거래 기록 포함
     status["trades"] = [
         {
             "side": t.side,
+            "signal_type": t.signal_type,
             "entry_price": t.entry_price,
             "exit_price": t.exit_price,
             "pnl": round(t.pnl, 2),
+            "pnl_pct": round(t.pnl_pct, 2),
+            "fee": round(t.fee, 4),
             "exit_reason": t.exit_reason,
             "entry_at": t.entry_at,
             "exit_at": t.exit_at,
@@ -292,11 +302,14 @@ async def demo_history(
         "trades": [
             {
                 "side": t.side,
+                "signal_type": t.signal_type,
                 "entry_price": t.entry_price,
                 "exit_price": t.exit_price,
                 "quantity": t.quantity,
                 "leverage": t.leverage,
                 "pnl": round(t.pnl, 2),
+                "pnl_pct": round(t.pnl_pct, 2),
+                "fee": round(t.fee, 4),
                 "exit_reason": t.exit_reason,
                 "entry_at": t.entry_at,
                 "exit_at": t.exit_at,

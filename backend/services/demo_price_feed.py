@@ -145,10 +145,11 @@ async def run_price_feed(
 
                 signal = evaluate_simple_signal(strategy_config, klines)
                 if signal:
-                    engine.signal(signal)
-                    # 즉시 가격 업데이트로 진입 실행
+                    # signal_evaluator 반환값 ("long"/"short") → 4종 진입 신호로 매핑
+                    signal_type = "BUY_LONG" if signal == "long" else "SELL_SHORT"
+                    engine.signal(signal_type)
                     engine.on_price_update(price, now_ms)
-                    logger.info(f"[{session_id}] 신호 감지: {signal} @ {price}")
+                    logger.info(f"[{session_id}] 신호 감지: {signal_type} @ {price}")
 
             # 주기적으로 klines 갱신 (30초마다)
             if now_ms % 30000 < int(interval_sec * 1000):

@@ -29,8 +29,9 @@ export default function DemoTradeLog({ trades }: DemoTradeLogProps) {
           <thead className="text-[#475569] border-b border-[#0F172A] sticky top-0 bg-[#1E293B]">
             <tr>
               <th className="py-1.5 px-3 text-left">#</th>
-              <th className="py-1.5 px-3 text-left">Side</th>
+              <th className="py-1.5 px-3 text-left">Signal</th>
               <th className="py-1.5 px-3 text-right">PnL</th>
+              <th className="py-1.5 px-3 text-right">PnL%</th>
               <th className="py-1.5 px-3 text-right">Reason</th>
             </tr>
           </thead>
@@ -40,11 +41,14 @@ export default function DemoTradeLog({ trades }: DemoTradeLogProps) {
                 <td className="py-1.5 px-3 font-mono">{trades.length - i}</td>
                 <td className="py-1.5 px-3">
                   <span className={`font-semibold ${trade.side === "long" ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
-                    {trade.side.toUpperCase()}
+                    {trade.signal_type || trade.side.toUpperCase()}
                   </span>
                 </td>
                 <td className={`py-1.5 px-3 text-right font-mono ${trade.pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
                   {trade.pnl >= 0 ? "+" : ""}{trade.pnl.toFixed(2)}
+                </td>
+                <td className={`py-1.5 px-3 text-right font-mono text-[10px] ${(trade.pnl_pct ?? 0) >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                  {trade.pnl_pct != null ? `${trade.pnl_pct >= 0 ? "+" : ""}${trade.pnl_pct.toFixed(1)}%` : "-"}
                 </td>
                 <td className="py-1.5 px-3 text-right text-[10px]">{trade.exit_reason}</td>
               </tr>

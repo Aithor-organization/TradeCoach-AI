@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 import PortalTooltip from "@/components/common/PortalTooltip";
 
 interface SignalIndicatorProps {
-  signal: "long" | "short" | "wait" | null;
+  signal: "long" | "short" | "wait" | "BUY_LONG" | "SELL_SHORT" | null;
   strength?: number;
 }
 
@@ -44,10 +44,12 @@ export default function SignalIndicator({ signal, strength }: SignalIndicatorPro
     );
   }
 
-  const config = SIGNAL_CONFIG[signal];
-  const label = signal === "long"
+  // 4종 신호를 기존 표시로 매핑
+  const normalizedSignal = signal === "BUY_LONG" ? "long" : signal === "SELL_SHORT" ? "short" : signal;
+  const config = SIGNAL_CONFIG[normalizedSignal as keyof typeof SIGNAL_CONFIG] || SIGNAL_CONFIG.wait;
+  const label = normalizedSignal === "long"
     ? t("td.signalLong", language)
-    : signal === "short"
+    : normalizedSignal === "short"
       ? t("td.signalShort", language)
       : t("td.signalWait", language);
 
@@ -56,7 +58,7 @@ export default function SignalIndicator({ signal, strength }: SignalIndicatorPro
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className={`text-xl ${config.color}`}>
-            {signal === "long" ? "▲" : signal === "short" ? "▼" : "◆"}
+            {normalizedSignal === "long" ? "▲" : normalizedSignal === "short" ? "▼" : "◆"}
           </span>
           <div>
             <p className={`text-sm font-bold ${config.color}`}>{label}</p>

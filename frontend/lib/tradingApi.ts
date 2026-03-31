@@ -33,11 +33,14 @@ export interface DemoSession {
 
 export interface DemoTrade {
   side: string;
+  signal_type?: string;  // "BUY_LONG" | "SELL_SHORT" | "SELL_LONG" | "BUY_SHORT"
   entry_price: number;
   exit_price: number;
   quantity?: number;
   leverage?: number;
   pnl: number;
+  pnl_pct?: number;
+  fee?: number;
   exit_reason: string;
   entry_at?: string;
   exit_at?: string;
