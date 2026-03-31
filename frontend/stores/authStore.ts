@@ -42,21 +42,23 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "tc-auth",
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          const token = localStorage.getItem("tc_token");
-          if (token && isTokenExpired(token)) {
-            // 만료된 토큰 자동 정리
-            localStorage.removeItem("tc_token");
-            useAuthStore.setState({
-              isAuthenticated: false, token: null, userId: null,
-              name: null, email: null, _hydrated: true,
-            });
-          } else if (token && !state.isAuthenticated) {
-            useAuthStore.setState({ isAuthenticated: true, token, _hydrated: true });
-          } else {
-            useAuthStore.setState({ _hydrated: true });
-          }
+      onRehydrateStorage: () => (state, error) => {
+        if (error || !state) {
+          // hydration 실패해도 앱은 작동해야 함
+          useAuthStore.setState({ _hydrated: true });
+          return;
+        }
+        const token = localStorage.getItem("tc_token");
+        if (token && isTokenExpired(token)) {
+          localStorage.removeItem("tc_token");
+          useAuthStore.setState({
+            isAuthenticated: false, token: null, userId: null,
+            name: null, email: null, _hydrated: true,
+          });
+        } else if (token && !state.isAuthenticated) {
+          useAuthStore.setState({ isAuthenticated: true, token, _hydrated: true });
+        } else {
+          useAuthStore.setState({ _hydrated: true });
         }
       },
     }
