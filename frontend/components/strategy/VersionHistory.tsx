@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getStrategyVersions, restoreStrategyVersion, type StrategyVersion } from "@/lib/api";
 import { getExplorerUrl } from "@/lib/solanaUtils";
+import { useToast } from "@/components/common/Toast";
 
 interface VersionHistoryProps {
   strategyId: string;
@@ -16,6 +17,7 @@ export default function VersionHistory({ strategyId, currentStatus, onRestore, r
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!strategyId || strategyId.startsWith("example-")) return;
@@ -37,7 +39,7 @@ export default function VersionHistory({ strategyId, currentStatus, onRestore, r
       onRestore?.();
       window.location.reload();
     } catch (e) {
-      console.error("Restore failed:", e);
+      showToast("Failed to restore version", "error");
     } finally {
       setRestoring(null);
     }

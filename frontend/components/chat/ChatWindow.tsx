@@ -132,7 +132,7 @@ function MessageBubble({ message, language = "ko" }: { message: ChatMessage; lan
         alert(language === "ko" ? "세션이 만료되었습니다. 다시 로그인해주세요." : "Session expired. Please login again.");
         router.push("/strategies");
       } else {
-        console.error("Save strategy failed:", e);
+        showToast("Failed to save strategy", "error");
       }
     } finally {
       setIsSaving(false);

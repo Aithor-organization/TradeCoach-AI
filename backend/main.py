@@ -115,12 +115,14 @@ app.include_router(admin.router)
 app.include_router(marketplace.router)
 
 
-@app.get("/health")
+@app.get("/health", tags=["system"])
 async def health_check():
     from services.rag import get_stats
+    from services.supabase_client import _is_available
     rag_stats = get_stats()
     return {
         "status": "ok",
-        "version": "0.1.0",
+        "version": "0.2.0",
+        "database": "connected" if _is_available() else "unavailable",
         "rag": {"documents": rag_stats["total_documents"]},
     }

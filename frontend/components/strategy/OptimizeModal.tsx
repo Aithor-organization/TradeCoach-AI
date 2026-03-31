@@ -7,6 +7,7 @@ import PortalTooltip from "@/components/common/PortalTooltip";
 import { runOptimization } from "@/lib/api";
 import { useLanguageStore } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
+import { useToast } from "@/components/common/Toast";
 
 interface OptimizeModalProps {
   strategy: ParsedStrategy;
@@ -110,6 +111,7 @@ export default function OptimizeModal({ strategy, onClose, onApply }: OptimizeMo
   const [results, setResults] = useState<OptimizeResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [tested, setTested] = useState(0);
+  const { showToast } = useToast();
 
   // 최적화 중 새로고침 방지
   useEffect(() => {
@@ -132,7 +134,7 @@ export default function OptimizeModal({ strategy, onClose, onApply }: OptimizeMo
       setResults(res.results || []);
       setTested(res.total_tested || 0);
     } catch (e) {
-      console.error("Optimization error:", e);
+      showToast("Optimization failed", "error");
       setResults([]); setTested(0);
     } finally {
       setLoading(false);

@@ -20,6 +20,7 @@ import StrategyChatPanel from "@/components/chat/StrategyChatPanel";
 import type { Strategy, ParsedStrategy, BacktestResult as BtResult, BacktestHistoryItem, BacktestMetrics, EquityPoint, TradeRecord } from "@/lib/types";
 import { useLanguageStore } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
+import { useToast } from "@/components/common/Toast";
 
 export default function StrategyDetailPage() {
   const params = useParams();
@@ -28,6 +29,7 @@ export default function StrategyDetailPage() {
   const isExample = id.startsWith("example-");
   const forkingRef = useRef(false);
   const { language } = useLanguageStore();
+  const { showToast } = useToast();
 
   const [strategy, setStrategy] = useState<Strategy | null>(null);
 
@@ -211,7 +213,7 @@ export default function StrategyDetailPage() {
       }
     } catch (err) {
       alert(t("sd.deleteHistoryFailed", language));
-      console.error(err);
+      showToast("Operation failed", "error");
     }
   };
 
@@ -230,11 +232,11 @@ export default function StrategyDetailPage() {
   };
 
   const executeBacktest = async (overrideStart?: string, overrideEnd?: string) => {
-    if (!strategy) { console.error("No strategy"); return; }
+    if (!strategy) { showToast("No strategy found", "error"); return; }
     setTesting(true);
     try {
       const ps = strategy.parsed_strategy;
-      if (!ps) { console.error("No parsed_strategy"); setTesting(false); return; }
+      if (!ps) { showToast("Strategy has no parsed data", "error"); setTesting(false); return; }
       const pair = ps.target_pair || "SOL/USDC";
       const tf = ps.timeframe || "1h";
       const bStart = overrideStart || startDate;
@@ -283,7 +285,7 @@ export default function StrategyDetailPage() {
       setSelectedIndex(0);
 
     } catch (err) {
-      console.error("Backtest error:", err);
+      showToast("Backtest failed", "error");
     } finally {
       setTesting(false);
     }

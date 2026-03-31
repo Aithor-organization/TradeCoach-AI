@@ -9,6 +9,7 @@ import { buildMemoTransaction, confirmTransaction, getExplorerUrl } from "@/lib/
 import { useLanguageStore } from "@/stores/languageStore";
 import { t } from "@/lib/i18n";
 import type { ParsedStrategy } from "@/lib/types";
+import { useToast } from "@/components/common/Toast";
 
 interface MintNFTButtonProps {
   strategyId: string;
@@ -25,6 +26,7 @@ export default function MintNFTButton({ strategyId, strategy, status: initialSta
   const [result, setResult] = useState<{ hash: string; signature: string; network: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [minted, setMinted] = useState(initialStatus === "verified");
+  const { showToast } = useToast();
 
   // props 변경 시 minted 상태 동기화 (전략 수정 → status "draft"로 리셋)
   useEffect(() => {
@@ -86,7 +88,7 @@ export default function MintNFTButton({ strategyId, strategy, status: initialSta
         setError(t("bc.mintFailed", language));
       }
     } catch (e) {
-      console.error("Mint error:", e);
+      showToast("Minting failed", "error");
       setError(e instanceof Error ? e.message : t("bc.mintFailed", language));
     } finally {
       setLoading(false);
