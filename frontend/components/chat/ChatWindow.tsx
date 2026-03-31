@@ -139,7 +139,7 @@ function MessageBubble({ message, language = "ko" }: { message: ChatMessage; lan
     } finally {
       setIsSaving(false);
     }
-  }, [message, router, allMessages]);
+  }, [message, router, allMessages, showToast, language]);
 
   const handleRunBacktest = useCallback(async () => {
     const strategy = message.metadata?.parsed_strategy;
