@@ -208,9 +208,9 @@ export default function MarketplaceDetailPage() {
           {perf ? (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <StatCard label="Win Rate" value={`${perf.win_rate}%`} positive={perf.win_rate >= 50} />
-              <StatCard label="Total PnL" value={`${perf.total_pnl >= 0 ? "+" : ""}${perf.total_pnl.toFixed(2)}%`} positive={perf.total_pnl >= 0} />
+              <StatCard label="Total PnL" value={`${(perf.total_pnl ?? 0) >= 0 ? "+" : ""}${(perf.total_pnl ?? 0).toFixed(2)}%`} positive={(perf.total_pnl ?? 0) >= 0} />
               <StatCard label="Total Trades" value={String(perf.total_trades)} />
-              <StatCard label="Max Drawdown" value={`${perf.max_drawdown.toFixed(2)}%`} positive={false} />
+              <StatCard label="Max Drawdown" value={`${(perf.max_drawdown ?? 0).toFixed(2)}%`} positive={false} />
               <StatCard label="Sessions" value={String(perf.sessions)} />
             </div>
           ) : (
@@ -325,8 +325,8 @@ function OverviewTab({ ps, perf, tradeCount, aiSummary, mpMetrics }: {
               </div>
               <div className="bg-[#0F172A] rounded p-2">
                 <span className="text-[#475569]">Total PnL: </span>
-                <span className={`font-semibold ${perf.total_pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
-                  {perf.total_pnl >= 0 ? "+" : ""}{perf.total_pnl}%
+                <span className={`font-semibold ${(perf.total_pnl ?? 0) >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                  {(perf.total_pnl ?? 0) >= 0 ? "+" : ""}{perf.total_pnl}%
                 </span>
               </div>
             </div>
@@ -358,8 +358,8 @@ function OverviewTab({ ps, perf, tradeCount, aiSummary, mpMetrics }: {
                 <div className="text-[9px] text-[#475569]">Win Rate</div>
               </div>
               <div className="bg-[#0F172A] rounded-lg p-3">
-                <div className={`text-lg font-bold ${perf.total_pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
-                  {perf.total_pnl >= 0 ? "+" : ""}{perf.total_pnl}%
+                <div className={`text-lg font-bold ${(perf.total_pnl ?? 0) >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                  {(perf.total_pnl ?? 0) >= 0 ? "+" : ""}{perf.total_pnl}%
                 </div>
                 <div className="text-[9px] text-[#475569]">Total PnL</div>
               </div>
@@ -448,8 +448,8 @@ function TradesTab({ trades }: { trades: Array<Record<string, unknown>> }) {
                       {String(trade.side ?? "—")}
                     </span>
                   </td>
-                  <td className={`p-3 text-right font-mono font-semibold ${pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
-                    {pnl >= 0 ? "+" : ""}{pnl.toFixed(2)}%
+                  <td className={`p-3 text-right font-mono font-semibold ${(pnl ?? 0) >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                    {pnl >= 0 ? "+" : ""}{(pnl ?? 0).toFixed(2)}%
                   </td>
                   <td className="p-3 text-[#94A3B8]">{String(trade.exit_reason ?? "—")}</td>
                 </tr>
