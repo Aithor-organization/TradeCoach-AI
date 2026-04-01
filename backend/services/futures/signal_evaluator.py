@@ -677,3 +677,55 @@ def _evaluate_condition_reversed(cond: Dict[str, Any], bars: List[OhlcvBar]) -> 
         return None
 
     return _compare(current_value, reversed_op, reversed_value)
+
+
+def evaluate_exit_signal(
+    strategy: Dict[str, Any],
+    bars: List[OhlcvBar],
+    position_side: str,
+) -> Optional[str]:
+    """
+    Evaluate strategy exit conditions against price bars.
+
+    Args:
+        strategy: parsed strategy with optional exit_conditions
+        bars: OHLCV price bars
+        position_side: "long" or "short"
+
+    Returns:
+        "SELL_LONG", "BUY_SHORT", or None
+    """
+    exit_conds = strategy.get("exit_conditions", strategy.get("exit", {}).get("conditions", []))
+    if not exit_conds:
+        return None
+
+    # exit_conditions가 dict 형태면 conditions 배열 추출
+    if isinstance(exit_conds, dict):
+        exit_conds = exit_conds.get("conditions", [])
+
+    if not exit_conds or len(bars) < 2:
+        return None
+
+    logic = "AND"
+    if isinstance(strategy.get("exit_conditions"), dict):
+        logic = strategy["exit_conditions"].get("logic", "AND")
+
+    results = []
+    for cond in exit_conds:
+        result = _evaluate_condition(cond, bars)
+        results.append(result)
+
+    if not results:
+        return None
+
+    if logic == "AND":
+        passed = all(r is True for r in results)
+    else:
+        passed = any(r is True for r in results)
+
+    if not passed:
+        return None
+
+    if position_side == "long":
+        return "SELL_LONG"
+    return "BUY_SHORT"

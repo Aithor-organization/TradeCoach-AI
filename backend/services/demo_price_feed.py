@@ -52,31 +52,36 @@ async def fetch_recent_klines(symbol: str, interval: str = "1m", limit: int = 10
     return None
 
 
+def _klines_to_bars(klines: list):
+    """Binance klines를 OhlcvBar 리스트로 변환."""
+    from services.futures.data_loader import OhlcvBar
+    return [OhlcvBar(
+        timestamp=int(k[0]), open=float(k[1]), high=float(k[2]),
+        low=float(k[3]), close=float(k[4]), volume=float(k[5]),
+    ) for k in klines]
+
+
 def evaluate_simple_signal(strategy: Dict[str, Any], klines: list) -> Optional[str]:
-    """
-    간이 신호 평가: Binance klines 데이터에서 전략 조건을 평가.
-    futures signal_evaluator를 사용하되, OhlcvBar로 변환.
-    """
+    """진입 신호 평가: "long" 또는 "short" 반환."""
     if not klines or len(klines) < 20:
         return None
-
     try:
-        from services.futures.data_loader import OhlcvBar
         from services.futures.signal_evaluator import evaluate_entry_signal
-
-        bars = []
-        for k in klines:
-            bars.append(OhlcvBar(
-                timestamp=int(k[0]),
-                open=float(k[1]),
-                high=float(k[2]),
-                low=float(k[3]),
-                close=float(k[4]),
-                volume=float(k[5]),
-            ))
-        return evaluate_entry_signal(strategy, bars)
+        return evaluate_entry_signal(strategy, _klines_to_bars(klines))
     except Exception as e:
-        logger.debug(f"신호 평가 실패: {e}")
+        logger.debug(f"진입 신호 평가 실패: {e}")
+        return None
+
+
+def evaluate_exit_signal(strategy: Dict[str, Any], klines: list, position_side: str) -> Optional[str]:
+    """청산 신호 평가: "SELL_LONG" 또는 "BUY_SHORT" 반환."""
+    if not klines or len(klines) < 20:
+        return None
+    try:
+        from services.futures.signal_evaluator import evaluate_exit_signal as _eval_exit
+        return _eval_exit(strategy, _klines_to_bars(klines), position_side)
+    except Exception as e:
+        logger.debug(f"청산 신호 평가 실패: {e}")
         return None
 
 
@@ -137,19 +142,27 @@ async def run_price_feed(
             # 가격 업데이트 → SL/TP/트레일링 스탑 자동 처리
             trade = engine.on_price_update(price, now_ms)
 
-            # 포지션이 없으면 신호 평가
-            if engine.session.position is None and klines:
-                # klines 마지막 봉의 close를 현재 가격으로 업데이트
-                if klines:
-                    klines[-1][4] = str(price)
+            # klines 마지막 봉의 close를 현재 가격으로 업데이트
+            if klines:
+                klines[-1][4] = str(price)
 
+            pos = engine.session.position
+
+            if pos is not None and klines:
+                # 포지션 보유 중: 사용자 정의 청산 조건 평가 (4종 신호)
+                exit_signal = evaluate_exit_signal(strategy_config, klines, pos.side)
+                if exit_signal:
+                    engine.signal(exit_signal)
+                    engine.on_price_update(price, now_ms)
+                    logger.info(f"[{session_id}] 청산 신호: {exit_signal} @ {price}")
+            elif pos is None and klines:
+                # 포지션 없음: 진입 신호 평가
                 signal = evaluate_simple_signal(strategy_config, klines)
                 if signal:
-                    # signal_evaluator 반환값 ("long"/"short") → 4종 진입 신호로 매핑
                     signal_type = "BUY_LONG" if signal == "long" else "SELL_SHORT"
                     engine.signal(signal_type)
                     engine.on_price_update(price, now_ms)
-                    logger.info(f"[{session_id}] 신호 감지: {signal_type} @ {price}")
+                    logger.info(f"[{session_id}] 진입 신호: {signal_type} @ {price}")
 
             # 주기적으로 klines 갱신 (30초마다)
             if now_ms % 30000 < int(interval_sec * 1000):
