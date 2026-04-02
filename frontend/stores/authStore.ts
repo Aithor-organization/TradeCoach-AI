@@ -31,6 +31,20 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "tc-auth",
       onRehydrateStorage: () => (state) => {
+        // 이전 배포에서 localStorage에 저장된 _hydrated 오염 데이터 정리
+        if (typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem("tc-auth");
+            if (raw && raw.includes("_hydrated")) {
+              const parsed = JSON.parse(raw);
+              if (parsed?.state?._hydrated !== undefined) {
+                delete parsed.state._hydrated;
+                localStorage.setItem("tc-auth", JSON.stringify(parsed));
+              }
+            }
+          } catch { /* 파싱 실패 무시 */ }
+        }
+
         // localStorage 토큰과 store 동기화
         if (typeof window === "undefined") {
           useAuthHydration.setState({ hydrated: true });
