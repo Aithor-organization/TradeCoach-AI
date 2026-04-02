@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   getPublicStrategies,
   getPlatformInfo,
-  getStrategyPerformance,
+  getBatchPerformance,
 } from "@/lib/blockchainApi";
 import type { PublicStrategy, PlatformInfo, StrategyPerformance } from "@/lib/blockchainApi";
 import AuthGuard from "@/components/common/AuthGuard";
@@ -35,17 +35,12 @@ export default function MarketplacePage() {
         setStrategies(strats);
         setPlatform(platRes);
 
-        // 각 전략의 성과 데이터를 병렬 조회
-        const perfs = await Promise.all(
-          strats.map(s =>
-            getStrategyPerformance(s.id).catch(() => null)
-          )
-        );
-        const map: Record<string, StrategyPerformance> = {};
-        perfs.forEach((p, i) => {
-          if (p && p.total_trades > 0) map[strats[i].id] = p;
-        });
-        setPerfMap(map);
+        // 배치 API로 모든 전략 성과를 1회 조회 (N+1 → 1)
+        if (strats.length > 0) {
+          const ids = strats.map(s => s.id);
+          const map = await getBatchPerformance(ids);
+          setPerfMap(map);
+        }
       } catch { /* API 에러 */ }
       finally { setLoading(false); }
     })();
@@ -150,8 +145,29 @@ export default function MarketplacePage() {
 
         {/* 전략 목록 */}
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin h-8 w-8 border-2 border-[#22D3EE] border-t-transparent rounded-full" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] p-5 space-y-3 animate-pulse">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded bg-[#0F172A]" />
+                  <div className="h-4 w-32 rounded bg-[#0F172A]" />
+                </div>
+                <div className="flex gap-1.5">
+                  <div className="h-5 w-10 rounded bg-[#0F172A]" />
+                  <div className="h-5 w-12 rounded bg-[#0F172A]" />
+                  <div className="h-5 w-14 rounded bg-[#0F172A]" />
+                </div>
+                <div className="bg-[#0F172A] rounded-lg p-3 space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="h-8 rounded bg-[#1E293B]" />
+                    <div className="h-8 rounded bg-[#1E293B]" />
+                    <div className="h-8 rounded bg-[#1E293B]" />
+                  </div>
+                  <div className="h-8 rounded bg-[#1E293B]" />
+                </div>
+                <div className="h-8 rounded-lg bg-[#0F172A]" />
+              </div>
+            ))}
           </div>
         ) : filtered.length === 0 ? (
           <div className="bg-[#1E293B] rounded-xl border border-[#22D3EE20] p-12 text-center space-y-4">
@@ -205,25 +221,31 @@ export default function MarketplacePage() {
                     )}
                   </div>
 
-                  {/* 성과 데이터 */}
+                  {/* 성과 데이터 + 수익 그래프 */}
                   {perf ? (
-                    <div className="grid grid-cols-3 gap-2 bg-[#0F172A] rounded-lg p-3">
-                      <div className="text-center">
-                        <div className={`text-sm font-bold ${perf.win_rate >= 50 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
-                          {perf.win_rate}%
+                    <div className="bg-[#0F172A] rounded-lg p-3 space-y-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="text-center">
+                          <div className={`text-sm font-bold ${perf.win_rate >= 50 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                            {perf.win_rate}%
+                          </div>
+                          <div className="text-[9px] text-[#475569]">Win Rate</div>
                         </div>
-                        <div className="text-[9px] text-[#475569]">Win Rate</div>
-                      </div>
-                      <div className="text-center">
-                        <div className={`text-sm font-bold ${perf.total_pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
-                          {perf.total_pnl >= 0 ? "+" : ""}{perf.total_pnl.toFixed(1)}%
+                        <div className="text-center">
+                          <div className={`text-sm font-bold ${perf.total_pnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                            {perf.total_pnl >= 0 ? "+" : ""}{perf.total_pnl.toFixed(1)}%
+                          </div>
+                          <div className="text-[9px] text-[#475569]">Total PnL</div>
                         </div>
-                        <div className="text-[9px] text-[#475569]">Total PnL</div>
+                        <div className="text-center">
+                          <div className="text-sm font-bold text-white">{perf.total_trades}</div>
+                          <div className="text-[9px] text-[#475569]">Trades</div>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <div className="text-sm font-bold text-white">{perf.total_trades}</div>
-                        <div className="text-[9px] text-[#475569]">Trades</div>
-                      </div>
+                      {/* 미니 수익 그래프 (SVG) */}
+                      {perf.equity_curve && perf.equity_curve.length >= 2 && (
+                        <MiniEquityCurve data={perf.equity_curve} />
+                      )}
                     </div>
                   ) : (
                     <div className="bg-[#0F172A] rounded-lg p-3 text-center">
@@ -252,5 +274,49 @@ export default function MarketplacePage() {
       </main>
     </div>
     </AuthGuard>
+  );
+}
+
+// 미니 수익 그래프 — SVG polyline 기반 (외부 라이브러리 불필요)
+function MiniEquityCurve({ data }: { data: { t: string; v: number }[] }) {
+  if (data.length < 2) return null;
+  const W = 200;
+  const H = 32;
+  const values = data.map(d => d.v);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const points = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * W;
+      const y = H - ((v - min) / range) * H;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const lastVal = values[values.length - 1];
+  const color = lastVal >= 0 ? "#22C55E" : "#EF4444";
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-8" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`eq-grad-${color}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* 면적 채우기 */}
+      <polygon
+        points={`0,${H} ${points} ${W},${H}`}
+        fill={`url(#eq-grad-${color})`}
+      />
+      {/* 선 */}
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
   );
 }

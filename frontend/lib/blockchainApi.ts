@@ -107,6 +107,11 @@ export async function getPlatformInfo() {
   return fetcher<PlatformInfo>("/blockchain/platform/info");
 }
 
+export interface EquityCurvePoint {
+  t: string; // ISO8601 timestamp
+  v: number; // 누적 PnL
+}
+
 export interface StrategyPerformance {
   strategy_id: string;
   total_trades: number;
@@ -118,12 +123,68 @@ export interface StrategyPerformance {
   period_days?: number;
   tx_signatures?: string[];
   verified: boolean;
+  equity_curve?: EquityCurvePoint[];
+}
+
+// 인메모리 캐시 (5분 TTL)
+const perfCache = new Map<string, { data: StrategyPerformance; ts: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
+
+function getCached(key: string): StrategyPerformance | null {
+  const entry = perfCache.get(key);
+  if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.data;
+  if (entry) perfCache.delete(key);
+  return null;
 }
 
 export async function getStrategyPerformance(strategyId: string) {
-  return fetcher<StrategyPerformance & { message?: string }>(
+  const cached = getCached(strategyId);
+  if (cached) return cached;
+  const result = await fetcher<StrategyPerformance & { message?: string }>(
     `/blockchain/strategy/${strategyId}/performance`,
   );
+  if (result && result.total_trades > 0) {
+    perfCache.set(strategyId, { data: result, ts: Date.now() });
+  }
+  return result;
+}
+
+// 배치 성과 조회 (마켓플레이스용, N+1 방지)
+export async function getBatchPerformance(strategyIds: string[]) {
+  if (strategyIds.length === 0) return {};
+
+  // 캐시 히트된 것과 미스된 것 분리
+  const result: Record<string, StrategyPerformance> = {};
+  const missIds: string[] = [];
+  for (const id of strategyIds) {
+    const cached = getCached(id);
+    if (cached) {
+      result[id] = cached;
+    } else {
+      missIds.push(id);
+    }
+  }
+
+  // 캐시 미스된 것만 배치 API로 조회
+  if (missIds.length > 0) {
+    try {
+      const batchResult = await fetcher<Record<string, StrategyPerformance>>(
+        "/blockchain/strategies/batch-performance",
+        {
+          method: "POST",
+          body: JSON.stringify({ strategy_ids: missIds }),
+        },
+      );
+      for (const [id, perf] of Object.entries(batchResult)) {
+        result[id] = perf;
+        perfCache.set(id, { data: perf, ts: Date.now() });
+      }
+    } catch {
+      // 배치 API 실패 시 캐시된 결과만 반환
+    }
+  }
+
+  return result;
 }
 
 export interface TradeHistoryResponse {

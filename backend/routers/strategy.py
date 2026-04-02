@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from models.strategy import StrategyCreate, StrategySave, StrategyUpdate
 from dependencies import get_current_user_id
@@ -78,10 +78,12 @@ async def list_strategies(
 
 
 @router.get("/public")
-async def list_public_strategies():
+async def list_public_strategies(response: Response):
     """공개 전략 목록 (마켓플레이스용, 인증 불필요) - 전략 상세는 숨기고 요약만 반환"""
     import httpx
     from services.supabase_client import _rest_url, _headers, _is_available
+    # 60초 캐시 — CDN/브라우저 레벨에서 불필요한 재조회 방지
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=30"
 
     if not _is_available():
         return {"strategies": []}
@@ -100,8 +102,9 @@ async def list_public_strategies():
             )
             strategies = res.json() if res.status_code == 200 else []
 
+            # 1단계: summary 처리 + strategy_ids 수집
+            strategy_ids = []
             for s in strategies:
-                # parsed_strategy에서 공개 가능한 요약 정보만 추출, 나머지 숨김
                 ps = s.get("parsed_strategy", {}) or {}
                 s["summary"] = {
                     "timeframe": ps.get("timeframe", ""),
@@ -111,17 +114,30 @@ async def list_public_strategies():
                     "direction": ps.get("direction", "both"),
                     "indicator_count": len(ps.get("entry", {}).get("conditions", [])),
                 }
-                # 전략 상세 내용 제거 (IP 보호)
                 del s["parsed_strategy"]
+                strategy_ids.append(s["id"])
 
-                # 온체인 정보 추가
+            # 2단계: 온체인 정보를 IN 쿼리로 1회 배치 조회 (N+1 → 1)
+            onchain_map: dict = {}
+            if strategy_ids:
+                ids_str = ",".join(str(sid) for sid in strategy_ids)
                 onchain_res = await client.get(
                     _rest_url("onchain_strategies"),
                     headers=_headers(),
-                    params={"strategy_id": f"eq.{s['id']}", "select": "asset_id,strategy_hash", "limit": "1"},
+                    params={
+                        "strategy_id": f"in.({ids_str})",
+                        "select": "asset_id,strategy_hash,strategy_id",
+                    },
                 )
-                onchain_data = onchain_res.json() if onchain_res.status_code == 200 else []
-                s["onchain"] = onchain_data[0] if onchain_data else None
+                if onchain_res.status_code == 200:
+                    for row in onchain_res.json():
+                        sid = row.get("strategy_id")
+                        if sid and sid not in onchain_map:
+                            onchain_map[sid] = {"asset_id": row.get("asset_id"), "strategy_hash": row.get("strategy_hash")}
+
+            # 3단계: 매핑
+            for s in strategies:
+                s["onchain"] = onchain_map.get(s["id"])
 
         return {"strategies": strategies}
     except Exception as e:

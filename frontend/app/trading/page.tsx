@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 
@@ -12,6 +12,7 @@ import DemoTradeLog from "@/components/trading/DemoTradeLog";
 import SignalIndicator from "@/components/trading/SignalIndicator";
 import { startDemo, stopDemo, getDemoStatus } from "@/lib/tradingApi";
 import type { DemoTrade, DemoStatus, SignalRecording } from "@/lib/tradingApi";
+import type { TradeMarker } from "@/components/trading/LiveChart";
 import { getStrategies, publishToMarketplace } from "@/lib/api";
 import { getStrategyPerformance, getStrategyTxHistory } from "@/lib/blockchainApi";
 import type { StrategyPerformance, OnchainTxRecord } from "@/lib/blockchainApi";
@@ -47,6 +48,30 @@ export default function TradingPage() {
     blockchain?: { tx_signature?: string; explorer_url?: string; network?: string; error?: string };
   } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // trades에서 차트 마커 파생
+  const chartMarkers = useMemo<TradeMarker[]>(() => {
+    return trades.flatMap(trade => {
+      const result: TradeMarker[] = [];
+      if (trade.entry_at) {
+        const isLong = trade.side === "long" || trade.signal_type === "BUY_LONG";
+        result.push({
+          time: Math.floor(new Date(trade.entry_at).getTime() / 1000),
+          type: isLong ? "entry_long" : "entry_short",
+          label: isLong ? "L" : "S",
+        });
+      }
+      if (trade.exit_at) {
+        const isLong = trade.side === "long" || trade.signal_type === "SELL_LONG";
+        result.push({
+          time: Math.floor(new Date(trade.exit_at).getTime() / 1000),
+          type: isLong ? "exit_long" : "exit_short",
+          label: trade.exit_reason === "take_profit" ? "TP" : trade.exit_reason === "stop_loss" ? "SL" : "X",
+        });
+      }
+      return result;
+    });
+  }, [trades]);
 
   // 전략 목록 로드 (민팅된 전략은 각각 별도 행으로 존재)
   useEffect(() => {
@@ -425,7 +450,7 @@ export default function TradingPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* 왼쪽: 차트 + 거래 로그 */}
                   <div className="lg:col-span-2 space-y-4">
-                    <LiveChart symbol={symbol} isActive={isActive} />
+                    <LiveChart symbol={symbol} isActive={isActive} markers={chartMarkers} />
                     <DemoTradeLog trades={trades} />
 
                     {/* Phase 5: 신호 온체인 기록 결과 */}

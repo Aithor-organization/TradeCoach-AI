@@ -2,15 +2,23 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 
+// 트레이딩 신호 마커 타입
+export interface TradeMarker {
+  time: number; // UNIX timestamp (seconds)
+  type: "entry_long" | "entry_short" | "exit_long" | "exit_short";
+  label?: string;
+}
+
 interface LiveChartProps {
   symbol: string;
   isActive: boolean;
+  markers?: TradeMarker[];
 }
 
 const BINANCE_KLINES = "https://fapi.binance.com/fapi/v1/klines";
 const BINANCE_WS = "wss://fstream.binance.com/ws";
 
-export default function LiveChart({ symbol, isActive }: LiveChartProps) {
+export default function LiveChart({ symbol, isActive, markers }: LiveChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<unknown>(null);
   const seriesRef = useRef<unknown>(null);
@@ -116,6 +124,31 @@ export default function LiveChart({ symbol, isActive }: LiveChartProps) {
       }
     };
   }, [symbol]);
+
+  // 마커 업데이트: trades에서 파생된 markers가 변경될 때 차트에 반영
+  useEffect(() => {
+    if (!seriesRef.current) return;
+    if (!markers || markers.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (seriesRef.current as any).setMarkers([]);
+      return;
+    }
+    const sorted = [...markers]
+      .sort((a, b) => a.time - b.time)
+      .map(m => {
+        const isEntry = m.type.startsWith("entry");
+        const isLong = m.type.includes("long");
+        return {
+          time: m.time,
+          position: (isEntry ? (isLong ? "belowBar" : "aboveBar") : (isLong ? "aboveBar" : "belowBar")) as "belowBar" | "aboveBar",
+          color: isEntry ? (isLong ? "#22C55E" : "#EF4444") : "#06B6D4",
+          shape: (isLong ? (isEntry ? "arrowUp" : "arrowDown") : (isEntry ? "arrowDown" : "arrowUp")) as "arrowUp" | "arrowDown",
+          text: m.label || (isEntry ? (isLong ? "L" : "S") : "X"),
+        };
+      });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (seriesRef.current as any).setMarkers(sorted);
+  }, [markers]);
 
   // Binance WebSocket 실시간 연결
   const connectWs = useCallback(() => {

@@ -11,7 +11,7 @@ import {
   purchaseStrategy,
   rentStrategy,
 } from "@/lib/blockchainApi";
-import type { StrategyPerformance, TradeHistoryResponse, OnchainTxRecord } from "@/lib/blockchainApi";
+import type { StrategyPerformance, TradeHistoryResponse, OnchainTxRecord, EquityCurvePoint } from "@/lib/blockchainApi";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -308,6 +308,13 @@ function OverviewTab({ ps, perf, tradeCount, aiSummary, mpMetrics }: {
         <h3 className="text-sm font-bold">Performance Analysis</h3>
         {perf ? (
           <div className="space-y-3">
+            {/* 수익 그래프 */}
+            {perf.equity_curve && perf.equity_curve.length >= 2 && (
+              <div className="bg-[#0F172A] rounded-lg p-3">
+                <div className="text-[9px] text-[#475569] mb-1">Equity Curve</div>
+                <EquityCurveChart data={perf.equity_curve} />
+              </div>
+            )}
             <ProgressBar label="Win Rate" value={perf.win_rate} max={100} color="#22C55E" />
             <ProgressBar label="Winning Trades" value={perf.winning_trades} max={perf.total_trades} color="#22D3EE" />
             <div className="grid grid-cols-2 gap-2 text-xs mt-3">
@@ -599,6 +606,57 @@ function ProgressBar({ label, value, max, color }: { label: string; value: numbe
       </div>
       <div className="h-1.5 bg-[#0F172A] rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  );
+}
+
+// 수익 그래프 — 상세 페이지용 (더 큰 버전)
+function EquityCurveChart({ data }: { data: EquityCurvePoint[] }) {
+  if (data.length < 2) return null;
+  const W = 400;
+  const H = 80;
+  const values = data.map(d => d.v);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const points = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * W;
+      const y = H - ((v - min) / range) * (H - 8) - 4; // 상하 여백 4px
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const lastVal = values[values.length - 1];
+  const color = lastVal >= 0 ? "#22C55E" : "#EF4444";
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="eq-detail-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {/* 0 기준선 */}
+        {min < 0 && max > 0 && (
+          <line
+            x1="0" x2={W}
+            y1={H - ((0 - min) / range) * (H - 8) - 4}
+            y2={H - ((0 - min) / range) * (H - 8) - 4}
+            stroke="#475569" strokeWidth="0.5" strokeDasharray="4,4"
+          />
+        )}
+        <polygon points={`0,${H} ${points} ${W},${H}`} fill="url(#eq-detail-grad)" />
+        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="flex justify-between text-[9px] text-[#475569] mt-1">
+        <span>{data[0].t.slice(0, 10)}</span>
+        <span className={lastVal >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}>
+          {lastVal >= 0 ? "+" : ""}{lastVal.toFixed(2)}%
+        </span>
+        <span>{data[data.length - 1].t.slice(0, 10)}</span>
       </div>
     </div>
   );

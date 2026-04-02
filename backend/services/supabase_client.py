@@ -384,7 +384,7 @@ async def save_trade_records(strategy_id: str, session_id: str, trades: list[dic
 
 
 async def get_strategy_performance_db(strategy_id: str) -> Optional[dict]:
-    """전략의 누적 성과를 DB에서 집계"""
+    """전략의 누적 성과를 DB에서 집계 (equity_curve 포함)"""
     if not _is_available():
         return None
     try:
@@ -395,7 +395,7 @@ async def get_strategy_performance_db(strategy_id: str) -> Optional[dict]:
                 params={
                     "strategy_id": f"eq.{strategy_id}",
                     "select": "total_trades,winning_trades,total_pnl,win_rate,tx_signature,created_at",
-                    "order": "created_at.desc",
+                    "order": "created_at.asc",
                     "limit": "50",
                 },
             )
@@ -409,6 +409,14 @@ async def get_strategy_performance_db(strategy_id: str) -> Optional[dict]:
             total_pnl = sum(float(s.get("total_pnl", 0)) for s in sessions)
             win_rate = (winning / total_trades * 100) if total_trades > 0 else 0
             tx_sigs = [s["tx_signature"] for s in sessions if s.get("tx_signature")]
+
+            # 누적 PnL 기반 equity curve
+            equity_curve = []
+            cumulative = 0.0
+            for s in sessions:
+                cumulative += float(s.get("total_pnl", 0))
+                equity_curve.append({"t": s["created_at"], "v": round(cumulative, 2)})
+
             return {
                 "strategy_id": strategy_id,
                 "total_trades": total_trades,
@@ -418,10 +426,70 @@ async def get_strategy_performance_db(strategy_id: str) -> Optional[dict]:
                 "sessions": len(sessions),
                 "tx_signatures": tx_sigs[:10],
                 "verified": len(tx_sigs) > 0,
+                "equity_curve": equity_curve,
             }
     except Exception as e:
         logger.warning(f"get_strategy_performance_db 예외: {e}")
     return None
+
+
+async def get_batch_strategy_performance_db(strategy_ids: list[str]) -> dict:
+    """여러 전략의 성과를 IN 쿼리로 한 번에 조회 (equity_curve 포함)"""
+    if not _is_available() or not strategy_ids:
+        return {}
+    try:
+        ids_str = ",".join(str(sid) for sid in strategy_ids)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(
+                _rest_url("trade_sessions"),
+                headers=_headers(),
+                params={
+                    "strategy_id": f"in.({ids_str})",
+                    "select": "strategy_id,total_trades,winning_trades,total_pnl,tx_signature,created_at",
+                    "order": "created_at.asc",
+                    "limit": "500",
+                },
+            )
+            if res.status_code != 200:
+                return {}
+            all_sessions = res.json()
+
+        # strategy_id별 그룹화
+        grouped: dict[str, list] = {}
+        for s in all_sessions:
+            sid = s.get("strategy_id")
+            if sid:
+                grouped.setdefault(sid, []).append(s)
+
+        result = {}
+        for sid, sessions in grouped.items():
+            total_trades = sum(s.get("total_trades", 0) for s in sessions)
+            winning = sum(s.get("winning_trades", 0) for s in sessions)
+            total_pnl = sum(float(s.get("total_pnl", 0)) for s in sessions)
+            win_rate = (winning / total_trades * 100) if total_trades > 0 else 0
+            tx_sigs = [s["tx_signature"] for s in sessions if s.get("tx_signature")]
+
+            equity_curve = []
+            cumulative = 0.0
+            for s in sessions:
+                cumulative += float(s.get("total_pnl", 0))
+                equity_curve.append({"t": s["created_at"], "v": round(cumulative, 2)})
+
+            result[sid] = {
+                "strategy_id": sid,
+                "total_trades": total_trades,
+                "winning_trades": winning,
+                "win_rate": round(win_rate, 1),
+                "total_pnl": round(total_pnl, 2),
+                "sessions": len(sessions),
+                "tx_signatures": tx_sigs[:10],
+                "verified": len(tx_sigs) > 0,
+                "equity_curve": equity_curve,
+            }
+        return result
+    except Exception as e:
+        logger.warning(f"get_batch_strategy_performance_db 예외: {e}")
+    return {}
 
 
 async def get_trade_records_db(strategy_id: str, limit: int = 50) -> list:

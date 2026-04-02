@@ -395,9 +395,25 @@ async def register_strategy_onchain_endpoint(
     return result
 
 
+class BatchPerformanceRequest(BaseModel):
+    strategy_ids: list[str]
+
+
+@router.post("/strategies/batch-performance")
+async def get_batch_performance(body: BatchPerformanceRequest):
+    """여러 전략의 성과를 한 번에 조회 (equity_curve 포함). N+1 방지용 배치 API."""
+    if not body.strategy_ids:
+        return {}
+    if len(body.strategy_ids) > 100:
+        raise HTTPException(status_code=400, detail="최대 100개 전략까지 조회 가능합니다")
+
+    from services.supabase_client import get_batch_strategy_performance_db
+    return await get_batch_strategy_performance_db(body.strategy_ids)
+
+
 @router.get("/strategy/{strategy_id}/performance")
 async def get_strategy_performance(strategy_id: str):
-    """전략 성과 조회 — DB 우선, 인메모리 폴백"""
+    """전략 성과 조회 — DB 우선, 인메모리 폴백 (equity_curve 포함)"""
     # 1. DB에서 조회 (영속, 서버 재시작 무관)
     try:
         from services.supabase_client import get_strategy_performance_db
