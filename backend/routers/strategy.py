@@ -67,6 +67,8 @@ async def list_strategies(
     user_id: Optional[str] = Depends(get_current_user_id),
 ):
     """내 전략 목록 (JWT에서 user_id 자동 추출)"""
+    if not user_id:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
     from services.supabase_client import get_strategies
 
     try:
