@@ -48,13 +48,8 @@ export default function WalletConnectButton() {
     }
   }, [connected, publicKey, disconnect, select, wallets, language]);
 
-  // 지갑 연결 후 이메일 로그인 안 되어 있으면 로그인 모달 표시
-  useEffect(() => {
-    if (!connected || !publicKey) return;
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-    }
-  }, [connected, publicKey, isAuthenticated]);
+  // 지갑 연결 시 자동 모달 표시 제거 — /login 페이지에서만 로그인
+  // (이전: 지갑 연결 + 미인증이면 자동 모달 → 랜딩페이지에서 모달 뜨는 버그)
 
   const shortenAddress = (addr: string) =>
     `${addr.slice(0, 4)}...${addr.slice(-4)}`;
@@ -79,11 +74,7 @@ export default function WalletConnectButton() {
           </div>
         )}
       </div>
-      {showAuthModal && !isAuthenticated && (
-        <div className="fixed inset-0 z-50">
-          <AuthModal onClose={() => setShowAuthModal(false)} />
-        </div>
-      )}
+      {/* 모달 제거 — 로그인은 /login 페이지에서만 */}
     </>
   );
 }
