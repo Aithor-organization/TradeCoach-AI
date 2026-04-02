@@ -1,19 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import AuthModal from "./AuthModal";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
-  const [mounted, setMounted] = useState(false);
+  const { isAuthenticated, _hydrated } = useAuthStore();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // SSR/hydration 중에는 스피너 표시 (최대 1프레임)
-  if (!mounted) {
+  // Zustand persist hydration이 완료될 때까지 스피너 표시
+  // (새로고침 시 localStorage → store 동기화 대기)
+  if (!_hydrated) {
     return (
       <div className="h-screen bg-[#0A0F1C] flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-[#22D3EE] border-t-transparent rounded-full animate-spin" />

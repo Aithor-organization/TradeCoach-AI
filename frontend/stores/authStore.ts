@@ -7,6 +7,7 @@ interface AuthState {
   name: string | null;
   email: string | null;
   token: string | null;
+  _hydrated: boolean;
   login: (token: string, userId: string, name: string, email: string) => void;
   logout: () => void;
 }
@@ -19,6 +20,7 @@ export const useAuthStore = create<AuthState>()(
       name: null,
       email: null,
       token: null,
+      _hydrated: false,
       login: (token, userId, name, email) => {
         localStorage.setItem("tc_token", token);
         set({ isAuthenticated: true, token, userId, name, email });
@@ -40,13 +42,17 @@ export const useAuthStore = create<AuthState>()(
             const payload = JSON.parse(atob(token.split(".")[1]));
             if (payload.exp && payload.exp * 1000 < Date.now()) {
               localStorage.removeItem("tc_token");
+              useAuthStore.setState({ _hydrated: true });
               return;
             }
           } catch {
             localStorage.removeItem("tc_token");
+            useAuthStore.setState({ _hydrated: true });
             return;
           }
-          useAuthStore.setState({ isAuthenticated: true, token });
+          useAuthStore.setState({ isAuthenticated: true, token, _hydrated: true });
+        } else {
+          useAuthStore.setState({ _hydrated: true });
         }
       },
     }
