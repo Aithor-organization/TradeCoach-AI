@@ -75,7 +75,7 @@ export default function Navigation() {
               {name || "User"}
             </span>
           ) : (
-            <Link href="/strategies" className="hidden md:inline text-xs text-[#94A3B8] hover:text-[#22D3EE] transition">
+            <Link href="/?login=true" className="hidden md:inline text-xs text-[#94A3B8] hover:text-[#22D3EE] transition">
               {language === "ko" ? "로그인" : "Login"}
             </Link>
           )}
