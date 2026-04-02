@@ -125,29 +125,48 @@ export default function LiveChart({ symbol, isActive, markers }: LiveChartProps)
     };
   }, [symbol]);
 
-  // 마커 업데이트: trades에서 파생된 markers가 변경될 때 차트에 반영
+  // 마커 업데이트: lightweight-charts v5의 createSeriesMarkers API 사용
+  const markersWrapperRef = useRef<unknown>(null);
   useEffect(() => {
     if (!seriesRef.current) return;
-    if (!markers || markers.length === 0) {
+
+    const updateMarkers = async () => {
+      const lc = await import("lightweight-charts");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (seriesRef.current as any).setMarkers([]);
-      return;
-    }
-    const sorted = [...markers]
-      .sort((a, b) => a.time - b.time)
-      .map(m => {
-        const isEntry = m.type.startsWith("entry");
-        const isLong = m.type.includes("long");
-        return {
-          time: m.time,
-          position: (isEntry ? (isLong ? "belowBar" : "aboveBar") : (isLong ? "aboveBar" : "belowBar")) as "belowBar" | "aboveBar",
-          color: isEntry ? (isLong ? "#22C55E" : "#EF4444") : "#06B6D4",
-          shape: (isLong ? (isEntry ? "arrowUp" : "arrowDown") : (isEntry ? "arrowDown" : "arrowUp")) as "arrowUp" | "arrowDown",
-          text: m.label || (isEntry ? (isLong ? "L" : "S") : "X"),
-        };
-      });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (seriesRef.current as any).setMarkers(sorted);
+      const createFn = (lc as any).createSeriesMarkers;
+      if (!createFn) return; // v5 미만이면 스킵
+
+      // 기존 마커 wrapper 제거
+      if (markersWrapperRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (markersWrapperRef.current as any).setMarkers([]);
+      }
+
+      if (!markers || markers.length === 0) return;
+
+      const sorted = [...markers]
+        .sort((a, b) => a.time - b.time)
+        .map(m => {
+          const isEntry = m.type.startsWith("entry");
+          const isLong = m.type.includes("long");
+          return {
+            time: m.time,
+            position: isEntry ? (isLong ? "belowBar" : "aboveBar") : (isLong ? "aboveBar" : "belowBar"),
+            color: isEntry ? (isLong ? "#22C55E" : "#EF4444") : "#06B6D4",
+            shape: isLong ? (isEntry ? "arrowUp" : "arrowDown") : (isEntry ? "arrowDown" : "arrowUp"),
+            text: m.label || (isEntry ? (isLong ? "L" : "S") : "X"),
+          };
+        });
+
+      if (markersWrapperRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (markersWrapperRef.current as any).setMarkers(sorted);
+      } else {
+        markersWrapperRef.current = createFn(seriesRef.current, sorted);
+      }
+    };
+
+    updateMarkers();
   }, [markers]);
 
   // Binance WebSocket 실시간 연결
