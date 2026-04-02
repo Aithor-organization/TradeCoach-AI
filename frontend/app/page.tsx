@@ -7,8 +7,6 @@ import Stats from "@/components/landing/Stats";
 import Pricing from "@/components/landing/Pricing";
 import FinalCTA from "@/components/landing/FinalCTA";
 import Footer from "@/components/layout/Footer";
-import LoginOverlay from "@/components/common/LoginOverlay";
-
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-[#0A0F1C]">
@@ -21,7 +19,6 @@ export default function LandingPage() {
       <Pricing />
       <FinalCTA />
       <Footer />
-      <LoginOverlay />
     </main>
   );
 }
