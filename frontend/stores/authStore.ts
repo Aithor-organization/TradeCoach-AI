@@ -32,6 +32,14 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "tc-auth",
+      // _hydrated는 런타임 전용 — localStorage에 저장하면 안 됨
+      partialize: (state) => ({
+        isAuthenticated: state.isAuthenticated,
+        userId: state.userId,
+        name: state.name,
+        email: state.email,
+        token: state.token,
+      }),
       onRehydrateStorage: () => (state) => {
         // localStorage 토큰과 store 동기화
         if (typeof window === "undefined") return;
