@@ -33,7 +33,7 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0A0F1C]/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0A0F1C] backdrop-blur-sm">
       <div className="bg-[#1E293B] rounded-2xl border border-[#22D3EE20] p-8 w-full max-w-md mx-4 shadow-2xl">
         <div className="text-center mb-6">
           <div className="flex items-center justify-center gap-2 mb-3">
