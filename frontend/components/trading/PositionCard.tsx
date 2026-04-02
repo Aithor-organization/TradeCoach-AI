@@ -34,9 +34,20 @@ export default function PositionCard({ position, balance, unrealizedPnl }: Posit
             <p className="text-xs text-[#94A3B8]">
               @ <span className="font-mono text-white">${position.entry_price.toLocaleString()}</span>
             </p>
-            <p className={`text-sm font-mono font-bold ${unrealizedPnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
-              {unrealizedPnl >= 0 ? "+" : ""}${unrealizedPnl.toFixed(2)}
-            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className={`text-sm font-mono font-bold ${unrealizedPnl >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                {unrealizedPnl >= 0 ? "+" : ""}${unrealizedPnl.toFixed(2)}
+              </span>
+              {(() => {
+                const margin = position.entry_price * (position.quantity || 0) / (position.leverage || 1);
+                const pnlPct = margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
+                return (
+                  <span className={`text-[10px] font-mono ${pnlPct >= 0 ? "text-[#22C55E]" : "text-[#EF4444]"}`}>
+                    ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
+                  </span>
+                );
+              })()}
+            </div>
           </div>
         ) : (
           <p className="text-sm text-[#475569]">{t("td.noPosition", language)}</p>
@@ -52,7 +63,7 @@ export default function PositionCard({ position, balance, unrealizedPnl }: Posit
         {position && (
           <p className="text-xs text-[#475569] mt-1">
             Margin: <span className="font-mono text-white">
-              ${(position.entry_price * position.quantity / position.leverage).toFixed(2)}
+              ${(position.entry_price * (position.quantity || 0) / (position.leverage || 1)).toFixed(2)}
             </span>
           </p>
         )}
