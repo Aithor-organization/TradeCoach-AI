@@ -5,6 +5,8 @@ async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
     ? localStorage.getItem("tc_token")
     : null;
 
+  console.log(`[API] ${options?.method || "GET"} ${path} | token: ${token ? "있음" : "없음"}`);
+
   const headers: Record<string, string> = {
     ...(options?.headers as Record<string, string>),
   };
@@ -18,19 +20,29 @@ async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (e) {
+    console.error(`[API] ${path} 네트워크 에러:`, e);
+    throw e;
+  }
+
+  console.log(`[API] ${path} → ${res.status}`);
 
   if (!res.ok) {
     // 401: 토큰 만료 → 자동 로그아웃
     if (res.status === 401 && typeof window !== "undefined") {
+      console.warn(`[API] 401 — 토큰 만료, 자동 로그아웃`);
       localStorage.removeItem("tc_token");
       const { useAuthStore } = await import("@/stores/authStore");
       useAuthStore.getState().logout();
     }
     const error = await res.json().catch(() => ({ detail: res.statusText }));
+    console.error(`[API] ${path} 에러:`, error);
     throw new Error(error.detail || "API Error");
   }
 

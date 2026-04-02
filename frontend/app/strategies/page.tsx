@@ -26,15 +26,24 @@ export default function StrategiesPage() {
   const { isAuthenticated } = useAuthStore();
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    console.log("[StrategiesPage] isAuthenticated:", isAuthenticated);
+    if (!isAuthenticated) {
+      console.log("[StrategiesPage] 인증 안 됨 — 전략 로딩 스킵");
+      return;
+    }
     setLoading(true);
+    console.log("[StrategiesPage] getStrategies() 호출 시작");
     getStrategies()
       .then((data: unknown) => {
         const d = data as { strategies?: Strategy[] };
         const list = Array.isArray(data) ? data : (d?.strategies ?? []);
+        console.log("[StrategiesPage] 전략 로딩 성공:", list.length, "개");
         setStrategies(list as Strategy[]);
       })
-      .catch(() => setStrategies([]))
+      .catch((e) => {
+        console.error("[StrategiesPage] 전략 로딩 실패:", e);
+        setStrategies([]);
+      })
       .finally(() => setLoading(false));
   }, [isAuthenticated]);
 
