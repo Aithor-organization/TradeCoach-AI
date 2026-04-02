@@ -125,48 +125,54 @@ export default function LiveChart({ symbol, isActive, markers }: LiveChartProps)
     };
   }, [symbol]);
 
-  // 마커 업데이트: lightweight-charts v5의 createSeriesMarkers API 사용
-  const markersWrapperRef = useRef<unknown>(null);
+  // 마커 업데이트: lightweight-charts v5 createSeriesMarkers API
+  // 에러 발생해도 차트 자체는 정상 동작하도록 전체를 try-catch로 보호
+  const markersRef = useRef<{ destroy: () => void } | null>(null);
   useEffect(() => {
     if (!seriesRef.current) return;
 
-    const updateMarkers = async () => {
-      const lc = await import("lightweight-charts");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const createFn = (lc as any).createSeriesMarkers;
-      if (!createFn) return; // v5 미만이면 스킵
-
-      // 기존 마커 wrapper 제거
-      if (markersWrapperRef.current) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (markersWrapperRef.current as any).setMarkers([]);
+    // 이전 마커 primitive 제거
+    try {
+      if (markersRef.current) {
+        markersRef.current.destroy();
+        markersRef.current = null;
       }
+    } catch { /* 무시 */ }
 
-      if (!markers || markers.length === 0) return;
+    if (!markers || markers.length === 0) return;
 
-      const sorted = [...markers]
-        .sort((a, b) => a.time - b.time)
-        .map(m => {
-          const isEntry = m.type.startsWith("entry");
-          const isLong = m.type.includes("long");
-          return {
-            time: m.time,
-            position: isEntry ? (isLong ? "belowBar" : "aboveBar") : (isLong ? "aboveBar" : "belowBar"),
-            color: isEntry ? (isLong ? "#22C55E" : "#EF4444") : "#06B6D4",
-            shape: isLong ? (isEntry ? "arrowUp" : "arrowDown") : (isEntry ? "arrowDown" : "arrowUp"),
-            text: m.label || (isEntry ? (isLong ? "L" : "S") : "X"),
+    const sorted = [...markers]
+      .sort((a, b) => a.time - b.time)
+      .map(m => {
+        const isEntry = m.type.startsWith("entry");
+        const isLong = m.type.includes("long");
+        return {
+          time: m.time,
+          position: isEntry ? (isLong ? "belowBar" : "aboveBar") : (isLong ? "aboveBar" : "belowBar"),
+          color: isEntry ? (isLong ? "#22C55E" : "#EF4444") : "#06B6D4",
+          shape: isLong ? (isEntry ? "arrowUp" : "arrowDown") : (isEntry ? "arrowDown" : "arrowUp"),
+          text: m.label || (isEntry ? (isLong ? "L" : "S") : "X"),
+        };
+      });
+
+    (async () => {
+      try {
+        const lc = await import("lightweight-charts");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const createFn = (lc as any).createSeriesMarkers;
+        if (createFn && seriesRef.current) {
+          const wrapper = createFn(seriesRef.current, sorted);
+          markersRef.current = {
+            destroy: () => {
+              try { wrapper?.detach?.(); } catch { /* v5 cleanup */ }
+              try { wrapper?.setMarkers?.([]); } catch { /* fallback */ }
+            },
           };
-        });
-
-      if (markersWrapperRef.current) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (markersWrapperRef.current as any).setMarkers(sorted);
-      } else {
-        markersWrapperRef.current = createFn(seriesRef.current, sorted);
+        }
+      } catch {
+        // lightweight-charts 마커 API 미지원 — 조용히 무시
       }
-    };
-
-    updateMarkers();
+    })();
   }, [markers]);
 
   // Binance WebSocket 실시간 연결
