@@ -19,10 +19,12 @@ import type { StrategyPerformance, OnchainTxRecord } from "@/lib/blockchainApi";
 import type { Strategy } from "@/lib/types";
 import AppHeader from "@/components/layout/AppHeader";
 import { useLanguageStore } from "@/stores/languageStore";
+import { useTaskStore } from "@/stores/taskStore";
 import { t } from "@/lib/i18n";
 
 export default function TradingPage() {
   const { language } = useLanguageStore();
+  const { tasks, addTask, updateTask } = useTaskStore();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -87,6 +89,27 @@ export default function TradingPage() {
       finally { setLoadingStrategies(false); }
     })();
   }, []);
+
+  // 세션 복구: 페이지 이동/새로고침 후 running demo task가 있으면 자동 연결
+  useEffect(() => {
+    const runningDemo = tasks.find(t => t.type === "demo" && t.status === "running");
+    if (runningDemo && !sessionId) {
+      // 서버에 세션이 살아있는지 확인
+      getDemoStatus(runningDemo.id)
+        .then((s) => {
+          setSessionId(runningDemo.id);
+          setIsActive(true);
+          setStatus(s);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const statusTrades = (s as any).trades;
+          if (statusTrades && statusTrades.length > 0) setTrades(statusTrades);
+        })
+        .catch(() => {
+          // 서버 세션이 만료됨 — task를 stopped로 표시
+          updateTask(runningDemo.id, { status: "stopped" });
+        });
+    }
+  }, [tasks, sessionId, updateTask]);
 
   // 선택된 전략의 온체인 TX 히스토리 로드 (Solana에서 직접 조회)
   useEffect(() => {
@@ -155,6 +178,13 @@ export default function TradingPage() {
       setSignal("wait");
       setSymbol(config.symbol);
       setSignalRecording(null);
+      // 백그라운드 task 등록 (페이지 이동/새로고침 후 복구용)
+      addTask({
+        id: session.session_id,
+        type: "demo",
+        strategyId: selectedStrategy?.id || "",
+        strategyName: selectedStrategy?.name || "",
+      });
     } catch {
       // 에러
     } finally {
@@ -174,6 +204,7 @@ export default function TradingPage() {
       const result = await stopDemo(sessionId, mode);
       setTrades(result.trades);
       setIsActive(false);
+      updateTask(sessionId, { status: "stopped" });
       if (result.signal_recording) {
         setSignalRecording(result.signal_recording);
       }
