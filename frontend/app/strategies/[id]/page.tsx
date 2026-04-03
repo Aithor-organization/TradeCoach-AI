@@ -38,6 +38,7 @@ export default function StrategyDetailPage() {
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
 
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [testing, setTesting] = useState(false);
 
   // 백테스트 기간 설정 (기본값: 최근 90일)
@@ -95,9 +96,16 @@ export default function StrategyDetailPage() {
           setInvestmentAmount(ps.position.size_value);
         }
 
-        // 과거 백테스트 기록 로드
+      } catch (e) {
+        setStrategy(null);
+      } finally {
+        setLoading(false); // 전략 본문만 로드되면 바로 렌더
+      }
+
+      // 히스토리는 별도 비동기 로드 (전략 본문 렌더를 차단하지 않음)
+      try {
+        setHistoryLoading(true);
         if (isExample) {
-          // 예시 전략은 localStorage에서 복원
           try {
             const cached = localStorage.getItem(`bt-history-${id}`);
             if (cached) {
@@ -115,7 +123,7 @@ export default function StrategyDetailPage() {
             const mappedHistory: BacktestHistoryItem[] = historyData.map((h: Record<string, unknown>) => ({
               id: h.id as string,
               timestamp: new Date(h.created_at as string | number | Date),
-              strategy: (h.parsed_strategy as ParsedStrategy) || (data as Strategy).parsed_strategy,
+              strategy: (h.parsed_strategy as ParsedStrategy) || strategy?.parsed_strategy,
               result: {
                 id: h.id as string,
                 strategy_id: h.strategy_id as string,
@@ -130,11 +138,8 @@ export default function StrategyDetailPage() {
             setHistory(mappedHistory);
           }
         }
-      } catch (e) {
-        setStrategy(null);
-      } finally {
-        setLoading(false);
-      }
+      } catch { /* 히스토리 로딩 실패 */ }
+      finally { setHistoryLoading(false); }
     };
 
     loadData();
