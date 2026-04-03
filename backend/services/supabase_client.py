@@ -632,7 +632,7 @@ async def get_backtests_by_strategy_id(strategy_id: str) -> list:
         headers=_headers(),
         params={
             "strategy_id": f"eq.{strategy_id}",
-            "select": "id,strategy_id,pair,timeframe,start_date,end_date,created_at,metrics",
+            "select": "id,strategy_id,token_pair,timeframe,start_date,end_date,created_at,metrics,equity_curve,parsed_strategy",
             "order": "created_at.desc"
         },
     )
