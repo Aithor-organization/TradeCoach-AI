@@ -126,7 +126,7 @@ async def get_or_create_user(wallet_address: str) -> Optional[dict]:
     return None
 
 
-async def get_or_create_user_by_email(email: str, name: str) -> Optional[dict]:
+async def get_or_create_user_by_email(email: str, name: str, password_hash: Optional[str] = None) -> Optional[dict]:
     """이메일로 사용자 조회 또는 생성 (MVP 간편 가입)"""
     if not _is_available():
         import uuid
@@ -141,12 +141,24 @@ async def get_or_create_user_by_email(email: str, name: str) -> Optional[dict]:
     )
     if res.status_code == 200 and res.json():
         return res.json()[0]
-    # 신규 생성 (display_name이 스키마에 없을 수 있으므로 최소 필드만)
+    # 신규 생성 — password_hash를 초기 INSERT에 포함 (별도 PATCH 불필요)
+    insert_data: dict = {"wallet_address": email, "tier": "free"}
+    if password_hash:
+        insert_data["password_hash"] = password_hash
     res = await client.post(
         _rest_url("users"),
         headers=_headers(),
-        json={"wallet_address": email, "tier": "free"},
+        json=insert_data,
     )
+    # password_hash 컬럼이 없어서 INSERT 실패한 경우 → 컬럼 없이 재시도
+    if res.status_code not in (200, 201) and password_hash:
+        logger.warning(f"password_hash 포함 INSERT 실패 ({res.status_code}), 컬럼 없이 재시도")
+        insert_data = {"wallet_address": email, "tier": "free"}
+        res = await client.post(
+            _rest_url("users"),
+            headers=_headers(),
+            json=insert_data,
+        )
     if res.status_code in (200, 201) and res.json():
         data = res.json()
         user = data[0] if isinstance(data, list) else data
@@ -160,6 +172,17 @@ async def get_or_create_user_by_email(email: str, name: str) -> Optional[dict]:
             )
         except Exception:
             pass
+        # password_hash가 INSERT에 포함되지 않았으면 별도 PATCH 시도
+        if password_hash and "password_hash" not in insert_data:
+            try:
+                await client.patch(
+                    _rest_url("users"),
+                    headers=_headers(),
+                    params={"id": f"eq.{user['id']}"},
+                    json={"password_hash": password_hash},
+                )
+            except Exception:
+                logger.warning("password_hash PATCH 실패 — Supabase에 컬럼 추가 필요")
         user["display_name"] = name
         return user
     logger.warning(f"Supabase user creation failed: {res.status_code} {res.text}")

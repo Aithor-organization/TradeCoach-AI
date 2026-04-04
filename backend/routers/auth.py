@@ -236,29 +236,31 @@ async def login_with_email(request: Request, body: EmailLoginRequest):
 async def register_with_email(request: Request, body: EmailRegisterRequest):
     """이름 + 이메일 + 비밀번호로 회원가입"""
     import bcrypt
-    from services.supabase_client import get_or_create_user_by_email, _get_client, _rest_url, _headers
+    from services.supabase_client import get_or_create_user_by_email
 
     if not body.email or not body.name or not body.password:
         raise HTTPException(status_code=400, detail="Name, email and password are required")
 
     try:
-        user = await get_or_create_user_by_email(body.email, body.name)
+        # 비밀번호를 먼저 해싱하여 사용자 생성 시 함께 INSERT
+        password_hash = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        user = await get_or_create_user_by_email(body.email, body.name, password_hash=password_hash)
 
-        # 비밀번호 해싱 후 저장
-        if user:
-            password_hash = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            try:
-                client = _get_client()
-                await client.patch(
-                    _rest_url("users"),
-                    headers=_headers(),
-                    params={"id": f"eq.{user['id']}"},
-                    json={"password_hash": password_hash},
-                )
-            except Exception as e:
-                logger.warning(f"비밀번호 저장 실패 (비치명적): {e}")
         if not user:
             raise HTTPException(status_code=500, detail="Failed to create user")
+
+        # DB 저장 검증 — 실제로 조회 가능한지 확인
+        from services.supabase_client import _is_available, _get_client, _rest_url, _headers
+        if _is_available():
+            verify_client = _get_client()
+            verify_res = await verify_client.get(
+                _rest_url("users"),
+                headers=_headers(),
+                params={"wallet_address": f"eq.{body.email}", "select": "id"},
+            )
+            if verify_res.status_code != 200 or not verify_res.json():
+                logger.error(f"회원가입 DB 저장 검증 실패: 유저가 DB에 없음 (email={body.email})")
+                raise HTTPException(status_code=500, detail="User created but not found in DB — please retry")
 
         # 통일된 JWT 생성 (email_verified는 향후 이메일 인증 플로우용)
         access_token = _create_jwt_token(
