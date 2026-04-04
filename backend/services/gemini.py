@@ -695,7 +695,3 @@ Keep it professional and factual. Do not exaggerate results."""
         except Exception as e2:
             logger.error(f"마켓플레이스 AI 요약 생성 실패: {e2}")
             return ""
-
-    except Exception as e:
-        logger.error(f"스트리밍 처리 실패: {e}")
-        yield f"Failed to generate AI response. (Error: {type(e).__name__})" if language == "en" else f"AI 응답 생성에 실패했습니다. (오류: {type(e).__name__})"
