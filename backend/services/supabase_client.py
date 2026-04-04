@@ -444,12 +444,32 @@ async def get_strategy_performance_db(strategy_id: str) -> Optional[dict]:
         win_rate = (winning / total_trades * 100) if total_trades > 0 else 0
         tx_sigs = [s["tx_signature"] for s in sessions if s.get("tx_signature")]
 
-        # 누적 PnL 기반 equity curve
+        # 개별 트레이드 기반 equity curve (trade_records 테이블)
         equity_curve = []
-        cumulative = 0.0
-        for s in sessions:
-            cumulative += float(s.get("total_pnl", 0))
-            equity_curve.append({"t": s["created_at"], "v": round(cumulative, 2)})
+        try:
+            tr_res = await client.get(
+                _rest_url("trade_records"),
+                headers=_headers(),
+                params={
+                    "strategy_id": f"eq.{strategy_id}",
+                    "select": "pnl,created_at",
+                    "order": "created_at.asc",
+                    "limit": "500",
+                },
+            )
+            if tr_res.status_code == 200 and tr_res.json():
+                cumulative = 0.0
+                for tr in tr_res.json():
+                    cumulative += float(tr.get("pnl", 0))
+                    equity_curve.append({"t": tr["created_at"], "v": round(cumulative, 2)})
+        except Exception:
+            pass
+        # trade_records가 없으면 세션 기반 폴백
+        if not equity_curve:
+            cumulative = 0.0
+            for s in sessions:
+                cumulative += float(s.get("total_pnl", 0))
+                equity_curve.append({"t": s["created_at"], "v": round(cumulative, 2)})
 
         return {
             "strategy_id": strategy_id,
@@ -495,6 +515,27 @@ async def get_batch_strategy_performance_db(strategy_ids: list[str]) -> dict:
             if sid:
                 grouped.setdefault(sid, []).append(s)
 
+        # 개별 트레이드 기반 equity curve (trade_records 배치 조회)
+        trade_records_grouped: dict[str, list] = {}
+        try:
+            tr_res = await client.get(
+                _rest_url("trade_records"),
+                headers=_headers(),
+                params={
+                    "strategy_id": f"in.({ids_str})",
+                    "select": "strategy_id,pnl,created_at",
+                    "order": "created_at.asc",
+                    "limit": "2000",
+                },
+            )
+            if tr_res.status_code == 200:
+                for tr in tr_res.json():
+                    sid = tr.get("strategy_id")
+                    if sid:
+                        trade_records_grouped.setdefault(sid, []).append(tr)
+        except Exception:
+            pass
+
         result = {}
         for sid, sessions in grouped.items():
             total_trades = sum(s.get("total_trades", 0) for s in sessions)
@@ -503,11 +544,19 @@ async def get_batch_strategy_performance_db(strategy_ids: list[str]) -> dict:
             win_rate = (winning / total_trades * 100) if total_trades > 0 else 0
             tx_sigs = [s["tx_signature"] for s in sessions if s.get("tx_signature")]
 
+            # trade_records 기반 equity curve (없으면 세션 폴백)
             equity_curve = []
-            cumulative = 0.0
-            for s in sessions:
-                cumulative += float(s.get("total_pnl", 0))
-                equity_curve.append({"t": s["created_at"], "v": round(cumulative, 2)})
+            trades_for_sid = trade_records_grouped.get(sid, [])
+            if trades_for_sid:
+                cumulative = 0.0
+                for tr in trades_for_sid:
+                    cumulative += float(tr.get("pnl", 0))
+                    equity_curve.append({"t": tr["created_at"], "v": round(cumulative, 2)})
+            else:
+                cumulative = 0.0
+                for s in sessions:
+                    cumulative += float(s.get("total_pnl", 0))
+                    equity_curve.append({"t": s["created_at"], "v": round(cumulative, 2)})
 
             result[sid] = {
                 "strategy_id": sid,
