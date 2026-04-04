@@ -65,10 +65,12 @@ export default function Navigation() {
             <span className="text-xs text-[#475569]">/</span>
             <span className={`text-xs font-bold ${language === "en" ? "text-[#22D3EE]" : "text-[#475569]"}`}>EN</span>
           </button>
-          {/* 지갑 (데스크톱만) */}
-          <div className="hidden md:block">
-            <WalletConnectButton />
-          </div>
+          {/* 지갑 (로그인 후에만 표시) */}
+          {isAuthenticated && (
+            <div className="hidden md:block">
+              <WalletConnectButton />
+            </div>
+          )}
           {/* 사용자 이름 또는 로그인/회원가입 */}
           {isAuthenticated ? (
             <span className="hidden md:inline text-xs text-[#22D3EE] font-medium truncate max-w-[100px]">
