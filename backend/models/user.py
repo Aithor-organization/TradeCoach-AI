@@ -49,6 +49,17 @@ class NonceResponse(BaseModel):
     nonce: str
 
 
+class EmailLoginRequest(BaseModel):
+    email: str = Field(..., max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", v):
+            raise ValueError("유효하지 않은 이메일 형식")
+        return v.lower()
+
+
 class EmailRegisterRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: str = Field(..., max_length=254)

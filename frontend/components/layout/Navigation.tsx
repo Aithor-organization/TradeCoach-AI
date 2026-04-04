@@ -69,22 +69,31 @@ export default function Navigation() {
           <div className="hidden md:block">
             <WalletConnectButton />
           </div>
-          {/* 사용자 이름 또는 로그인 */}
+          {/* 사용자 이름 또는 로그인/회원가입 */}
           {isAuthenticated ? (
             <span className="hidden md:inline text-xs text-[#22D3EE] font-medium truncate max-w-[100px]">
               {name || "User"}
             </span>
           ) : (
-            <Link href="/login" className="hidden md:inline text-xs text-[#94A3B8] hover:text-[#22D3EE] transition">
-              {language === "ko" ? "로그인" : "Login"}
+            <>
+              <Link href="/login" className="hidden md:inline text-xs text-[#94A3B8] hover:text-[#22D3EE] transition">
+                {language === "ko" ? "로그인" : "Login"}
+              </Link>
+              <Link href="/signup">
+                <Button size="sm" className="hidden md:inline text-xs whitespace-nowrap">
+                  {language === "ko" ? "회원가입" : "Sign Up"}
+                </Button>
+              </Link>
+            </>
+          )}
+          {/* CTA 버튼 (로그인 후) */}
+          {isAuthenticated && (
+            <Link href="/chat">
+              <Button size="sm" className="text-xs md:text-sm whitespace-nowrap">
+                {t("nav.freeStart", language)}
+              </Button>
             </Link>
           )}
-          {/* CTA 버튼 */}
-          <Link href="/chat">
-            <Button size="sm" className="text-xs md:text-sm whitespace-nowrap">
-              {t("nav.freeStart", language)}
-            </Button>
-          </Link>
         </div>
       </div>
     </nav>

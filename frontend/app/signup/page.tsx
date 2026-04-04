@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/authStore";
 import { useLanguageStore } from "@/stores/languageStore";
-import { loginWithEmail } from "@/lib/api";
+import { registerWithEmail } from "@/lib/api";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const { isAuthenticated, login } = useAuthStore();
   const { language } = useLanguageStore();
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -23,14 +24,14 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!name.trim() || !email.trim()) return;
     setIsSubmitting(true);
     setError("");
     try {
-      const res = await loginWithEmail(email.trim());
+      const res = await registerWithEmail(name.trim(), email.trim());
       login(res.access_token, res.user_id, res.name, res.email);
     } catch {
-      setError(language === "ko" ? "등록되지 않은 이메일입니다. 회원가입을 먼저 해주세요." : "Email not found. Please sign up first.");
+      setError(language === "ko" ? "회원가입에 실패했습니다. 다시 시도해주세요." : "Registration failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -51,16 +52,31 @@ export default function LoginPage() {
         <div className="bg-[#1E293B] rounded-2xl border border-[#22D3EE20] p-8 w-full max-w-md shadow-2xl">
           <div className="text-center mb-6">
             <h2 className="text-xl font-bold text-white mb-2">
-              {language === "ko" ? "로그인" : "Login"}
+              {language === "ko" ? "회원가입" : "Create Account"}
             </h2>
             <p className="text-sm text-[#94A3B8]">
-              {language === "ko" ? "이메일로 로그인하세요" : "Sign in with your email"}
+              {language === "ko" ? "AI 트레이딩 코치를 시작하세요" : "Start your AI trading coach journey"}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs text-[#94A3B8] mb-1.5">Email</label>
+              <label className="block text-xs text-[#94A3B8] mb-1.5">
+                {language === "ko" ? "이름" : "Name"}
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={language === "ko" ? "홍길동" : "John Doe"}
+                required
+                className="w-full px-4 py-2.5 rounded-lg bg-[#0F172A] border border-[#22D3EE20] text-white text-sm placeholder-[#475569] outline-none focus:border-[#22D3EE] transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-[#94A3B8] mb-1.5">
+                {language === "ko" ? "이메일" : "Email"}
+              </label>
               <input
                 type="email"
                 value={email}
@@ -76,18 +92,18 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 rounded-lg font-semibold text-sm bg-[#22D3EE] text-[#0A0F1C] hover:bg-[#06B6D4] transition disabled:opacity-50"
+              className="w-full py-2.5 rounded-lg font-semibold text-sm bg-gradient-to-r from-[#22D3EE] to-[#14F195] text-[#0A0F1C] hover:opacity-90 transition disabled:opacity-50"
             >
-              {isSubmitting ? "..." : (language === "ko" ? "로그인" : "Login")}
+              {isSubmitting ? "..." : (language === "ko" ? "회원가입" : "Create Account")}
             </button>
           </form>
 
           <div className="mt-6 text-center space-y-2">
             <p className="text-xs text-[#475569]">
-              {language === "ko" ? "계정이 없으신가요?" : "Don't have an account?"}
+              {language === "ko" ? "이미 계정이 있으신가요?" : "Already have an account?"}
               {" "}
-              <Link href="/signup" className="text-[#22D3EE] hover:underline font-semibold">
-                {language === "ko" ? "회원가입" : "Sign Up"}
+              <Link href="/login" className="text-[#22D3EE] hover:underline font-semibold">
+                {language === "ko" ? "로그인" : "Login"}
               </Link>
             </p>
             <Link href="/" className="block text-xs text-[#475569] hover:text-[#94A3B8]">

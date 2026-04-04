@@ -319,6 +319,13 @@ export async function registerWithEmail(name: string, email: string) {
   });
 }
 
+export async function loginWithEmail(email: string) {
+  return fetcher<{ access_token: string; user_id: string; name: string; email: string }>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
 // 최적화 API (Phase 2)
 export interface OptimizeResult {
   params: Record<string, number>;

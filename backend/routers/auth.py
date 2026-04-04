@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from models.user import WalletAuthRequest, WalletVerifyRequest, NonceResponse, AuthResponse, UserResponse, EmailRegisterRequest, EmailAuthResponse
+from models.user import WalletAuthRequest, WalletVerifyRequest, NonceResponse, AuthResponse, UserResponse, EmailRegisterRequest, EmailLoginRequest, EmailAuthResponse
 from config import get_settings
 from dependencies import require_auth
 from slowapi import Limiter
@@ -164,6 +164,49 @@ async def get_current_user(user_id: str = Depends(require_auth)):
     except Exception as e:
         logger.error(f"사용자 조회 실패 (user_id={user_id}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="사용자 정보 조회 중 오류가 발생했습니다.")
+
+
+@router.post("/login", response_model=EmailAuthResponse)
+@limiter.limit("10/minute")
+async def login_with_email(request: Request, body: EmailLoginRequest):
+    """이메일로 기존 사용자 로그인"""
+    from services.supabase_client import _is_available, _rest_url, _headers, _get_client
+
+    if not body.email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    try:
+        if not _is_available():
+            raise HTTPException(status_code=503, detail="Service unavailable")
+
+        client = _get_client()
+        res = await client.get(
+            _rest_url("users"),
+            headers=_headers(),
+            params={"wallet_address": f"eq.{body.email}", "select": "id,wallet_address,display_name,tier,created_at"},
+        )
+        if res.status_code != 200 or not res.json():
+            raise HTTPException(status_code=404, detail="등록되지 않은 이메일입니다. 먼저 회원가입을 해주세요.")
+
+        user = res.json()[0]
+        access_token = _create_jwt_token(
+            user["id"],
+            email=body.email,
+            email_verified=False,
+        )
+
+        return EmailAuthResponse(
+            access_token=access_token,
+            user_id=user["id"],
+            name=user.get("display_name", ""),
+            email=body.email,
+            email_verified=False,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"이메일 로그인 실패 (email={body.email}): {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Login failed")
 
 
 @router.post("/register", response_model=EmailAuthResponse)
