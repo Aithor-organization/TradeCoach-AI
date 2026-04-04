@@ -5,10 +5,61 @@ from dependencies import get_current_user_id
 from routers.auth import limiter
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _extract_strategy_from_text(text: str, ensure_defaults=None) -> Optional[dict]:
+    """AI 응답 텍스트에서 전략 JSON을 추출한다 (strategy_update, 코드블록, 인라인)."""
+    if not text:
+        return None
+
+    # 1. ```strategy_update 블록
+    if "```strategy_update" in text:
+        try:
+            start = text.index("```strategy_update") + len("```strategy_update")
+            end = text.index("```", start)
+            c = json.loads(text[start:end].strip())
+            if isinstance(c, dict) and "name" in c:
+                return ensure_defaults(c) if ensure_defaults else c
+        except (ValueError, json.JSONDecodeError):
+            pass
+
+    # 2. 모든 코드 블록
+    code_blocks = re.findall(r'```(?:\w*)\s*\n?(.*?)```', text, re.DOTALL)
+    for block in code_blocks:
+        try:
+            c = json.loads(block.strip())
+            if isinstance(c, dict) and "name" in c and "entry" in c:
+                return ensure_defaults(c) if ensure_defaults else c
+        except (ValueError, json.JSONDecodeError):
+            continue
+
+    # 3. 인라인 JSON: {"name": 패턴으로 시작하는 JSON 객체 추출 (중괄호 매칭)
+    for match in re.finditer(r'\{"name"\s*:', text):
+        start = match.start()
+        depth = 0
+        end = start
+        for i in range(start, len(text)):
+            if text[i] == '{':
+                depth += 1
+            elif text[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end > start:
+            try:
+                c = json.loads(text[start:end])
+                if isinstance(c, dict) and "entry" in c:
+                    return ensure_defaults(c) if ensure_defaults else c
+            except (ValueError, json.JSONDecodeError):
+                continue
+
+    return None
 
 
 @router.post("/message")
@@ -43,44 +94,13 @@ async def send_message(
         logger.error(f"AI 메시지 처리 실패: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="AI 응답 생성에 실패했습니다.")
 
-    # 코칭 응답에서 strategy_update 블록 추출
+    # 코칭 응답에서 전략 JSON 추출 (strategy_update, 코드블록, 인라인 JSON)
     msg_text = result.get("message", "")
-    if not result.get("parsed_strategy") and "```strategy_update" in msg_text:
-        try:
-            start = msg_text.index("```strategy_update") + len("```strategy_update")
-            end = msg_text.index("```", start)
-            strategy_json = msg_text[start:end].strip()
-            result["parsed_strategy"] = json.loads(strategy_json)
-            result["type"] = "strategy_updated"
-        except (ValueError, json.JSONDecodeError) as e:
-            logger.warning(f"전략 업데이트 JSON 파싱 실패: {e}")
-
-    # fallback: 모든 코드 블록에서 전략 JSON 파싱 (```json, ```strategy, ``` 등)
     if not result.get("parsed_strategy"):
-        import re
-        # 모든 코드 블록 매칭: ```언어\n내용\n``` 또는 ```\n내용\n```
-        code_blocks = re.findall(r'```(?:\w*)\s*\n?(.*?)```', msg_text, re.DOTALL)
-        for block in code_blocks:
-            try:
-                c = json.loads(block.strip())
-                if isinstance(c, dict) and "name" in c and "entry" in c:
-                    result["parsed_strategy"] = c
-                    result["type"] = "strategy_updated"
-                    break
-            except (ValueError, json.JSONDecodeError):
-                continue
-        # 최종 fallback: 코드 블록 없이 JSON이 텍스트에 직접 포함된 경우
-        if not result.get("parsed_strategy"):
-            try:
-                # 첫 번째 { 부터 마지막 } 까지 추출
-                first_brace = msg_text.index('{')
-                last_brace = msg_text.rindex('}')
-                c = json.loads(msg_text[first_brace:last_brace+1])
-                if isinstance(c, dict) and "name" in c and "entry" in c:
-                    result["parsed_strategy"] = c
-                    result["type"] = "strategy_updated"
-            except (ValueError, json.JSONDecodeError):
-                pass
+        from services.gemini import _ensure_strategy_defaults
+        result["parsed_strategy"] = _extract_strategy_from_text(msg_text, _ensure_strategy_defaults)
+        if result["parsed_strategy"]:
+            result["type"] = "strategy_parsed"
 
     # strategy_id가 있으면 user/AI 메시지를 DB에 저장 (실패해도 응답은 반환)
     if strategy_id:
@@ -218,41 +238,13 @@ async def send_message_stream(
                 full_text = error_msg
             yield f"data: {json.dumps({'chunk': error_msg}, ensure_ascii=False)}\n\n"
 
-        # 코칭 응답에서 strategy_update 블록 추출
-        if not parsed_strategy and "```strategy_update" in full_text:
-            try:
-                start = full_text.index("```strategy_update") + len("```strategy_update")
-                end = full_text.index("```", start)
-                strategy_json = full_text[start:end].strip()
-                parsed_strategy = json.loads(strategy_json)
-                response_type = "strategy_updated"
-            except (ValueError, json.JSONDecodeError) as e:
-                logger.warning(f"전략 업데이트 JSON 파싱 실패: {e}")
-
-        # fallback: 모든 코드 블록에서 전략 JSON 파싱
+        # 코칭 응답에서 전략 JSON 추출 (공통 함수 사용)
         if not parsed_strategy:
-            import re
-            code_blocks = re.findall(r'```(?:\w*)\s*\n?(.*?)```', full_text, re.DOTALL)
-            for block in code_blocks:
-                try:
-                    c = json.loads(block.strip())
-                    if isinstance(c, dict) and "name" in c and "entry" in c:
-                        parsed_strategy = c
-                        response_type = "strategy_updated"
-                        break
-                except (ValueError, json.JSONDecodeError):
-                    continue
-            # 최종 fallback: 코드 블록 없이 JSON 직접 포함
-            if not parsed_strategy:
-                try:
-                    fb = full_text.index('{')
-                    lb = full_text.rindex('}')
-                    c = json.loads(full_text[fb:lb+1])
-                    if isinstance(c, dict) and "name" in c and "entry" in c:
-                        parsed_strategy = c
-                        response_type = "strategy_updated"
-                except (ValueError, json.JSONDecodeError):
-                    pass
+            from services.gemini import _ensure_strategy_defaults
+            extracted = _extract_strategy_from_text(full_text, _ensure_strategy_defaults)
+            if extracted:
+                parsed_strategy = extracted
+                response_type = "strategy_parsed"
 
         # 완료 이벤트 (전체 텍스트 + 메타데이터)
         done_data = {"done": True, "type": response_type, "full_text": full_text}
