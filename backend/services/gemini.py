@@ -381,14 +381,21 @@ async def process_chat_message(
     try:
         # 이미지가 있으면 멀티모달 전략 파싱
         if image:
-            parsed = await parse_strategy_multimodal(text, image, language=language)
-            explanation = await generate_strategy_explanation(parsed, language=language)
-            default_msg = "Analyzed the chart image and generated a strategy." if language == "en" else "차트 이미지를 분석하여 전략을 생성했습니다."
-            return {
-                "type": "strategy_parsed",
-                "message": explanation or default_msg,
-                "parsed_strategy": parsed,
-            }
+            try:
+                parsed = await parse_strategy_multimodal(text, image, language=language)
+                explanation = await generate_strategy_explanation(parsed, language=language)
+                default_msg = "Analyzed the chart image and generated a strategy." if language == "en" else "차트 이미지를 분석하여 전략을 생성했습니다."
+                return {
+                    "type": "strategy_parsed",
+                    "message": explanation or default_msg,
+                    "parsed_strategy": parsed,
+                }
+            except (json.JSONDecodeError, ValueError):
+                # 이미지에서 전략 JSON 파싱 실패 → 일반 이미지 분석으로 폴백
+                return await _general_response(
+                    text or ("Describe what you see in this chart image." if language == "en" else "이 차트 이미지에서 보이는 내용을 설명해주세요."),
+                    history, language=language,
+                )
 
         # 기존 전략이 있으면 코칭 모드 (DB 저장된 전략)
         if strategy_id:
