@@ -10,6 +10,7 @@ import Button from "./Button";
 export default function AuthModal({ onClose }: { onClose?: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuthStore();
@@ -17,12 +18,12 @@ export default function AuthModal({ onClose }: { onClose?: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) return;
+    if (!name.trim() || !email.trim() || !password) return;
 
     setIsSubmitting(true);
     setError("");
     try {
-      const res = await registerWithEmail(name.trim(), email.trim());
+      const res = await registerWithEmail(name.trim(), email.trim(), password);
       login(res.access_token, res.user_id, res.name, res.email);
       onClose?.();
     } catch {

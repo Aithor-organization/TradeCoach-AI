@@ -7,13 +7,10 @@ import { requestNonce, verifyWallet } from "@/lib/api";
 import { useLanguageStore } from "@/stores/languageStore";
 import { useAuthStore } from "@/stores/authStore";
 import { t } from "@/lib/i18n";
-import AuthModal from "@/components/common/AuthModal";
-
 export default function WalletConnectButton() {
   const { publicKey, select, disconnect, connected, connecting, wallets, wallet } = useWallet();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const { language } = useLanguageStore();
   const { isAuthenticated } = useAuthStore();
 
