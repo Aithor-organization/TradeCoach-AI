@@ -636,6 +636,9 @@ async def process_chat_message_stream(
             config=_make_config(temperature=0.7, max_output_tokens=8192),
         ):
             yield chunk
+    except Exception as e:
+        logger.error(f"스트리밍 처리 실패: {e}", exc_info=True)
+        yield json.dumps({"type": "error", "message": str(e)}, ensure_ascii=False)
 
 
 async def generate_marketplace_summary(
