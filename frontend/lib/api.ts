@@ -312,17 +312,17 @@ export async function verifyWallet(walletAddress: string, signature: string, non
   });
 }
 
-export async function registerWithEmail(name: string, email: string) {
+export async function registerWithEmail(name: string, email: string, password: string) {
   return fetcher<{ access_token: string; user_id: string; name: string; email: string }>("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ name, email }),
+    body: JSON.stringify({ name, email, password }),
   });
 }
 
-export async function loginWithEmail(email: string) {
+export async function loginWithEmail(email: string, password: string) {
   return fetcher<{ access_token: string; user_id: string; name: string; email: string }>("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, password }),
   });
 }
 

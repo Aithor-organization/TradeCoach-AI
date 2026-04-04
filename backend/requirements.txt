@@ -22,3 +22,4 @@ anthropic>=0.40.0
 chromadb==1.5.1
 pytest
 pytest-asyncio
+bcrypt>=4.0.0

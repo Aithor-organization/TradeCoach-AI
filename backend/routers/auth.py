@@ -169,11 +169,12 @@ async def get_current_user(user_id: str = Depends(require_auth)):
 @router.post("/login", response_model=EmailAuthResponse)
 @limiter.limit("10/minute")
 async def login_with_email(request: Request, body: EmailLoginRequest):
-    """이메일로 기존 사용자 로그인"""
+    """이메일 + 비밀번호로 기존 사용자 로그인"""
+    import bcrypt
     from services.supabase_client import _is_available, _rest_url, _headers, _get_client
 
-    if not body.email:
-        raise HTTPException(status_code=400, detail="Email is required")
+    if not body.email or not body.password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
 
     try:
         if not _is_available():
@@ -183,12 +184,20 @@ async def login_with_email(request: Request, body: EmailLoginRequest):
         res = await client.get(
             _rest_url("users"),
             headers=_headers(),
-            params={"wallet_address": f"eq.{body.email}", "select": "id,wallet_address,display_name,tier,created_at"},
+            params={"wallet_address": f"eq.{body.email}", "select": "id,wallet_address,display_name,tier,password_hash,created_at"},
         )
         if res.status_code != 200 or not res.json():
             raise HTTPException(status_code=404, detail="등록되지 않은 이메일입니다. 먼저 회원가입을 해주세요.")
 
         user = res.json()[0]
+
+        # 비밀번호 검증
+        stored_hash = user.get("password_hash")
+        if not stored_hash:
+            raise HTTPException(status_code=401, detail="비밀번호가 설정되지 않은 계정입니다. 회원가입을 다시 해주세요.")
+        if not bcrypt.checkpw(body.password.encode("utf-8"), stored_hash.encode("utf-8")):
+            raise HTTPException(status_code=401, detail="비밀번호가 일치하지 않습니다.")
+
         access_token = _create_jwt_token(
             user["id"],
             email=body.email,
@@ -212,14 +221,29 @@ async def login_with_email(request: Request, body: EmailLoginRequest):
 @router.post("/register", response_model=EmailAuthResponse)
 @limiter.limit("5/minute")
 async def register_with_email(request: Request, body: EmailRegisterRequest):
-    """이름 + 이메일로 간단 가입 (MVP)"""
-    from services.supabase_client import get_or_create_user_by_email
+    """이름 + 이메일 + 비밀번호로 회원가입"""
+    import bcrypt
+    from services.supabase_client import get_or_create_user_by_email, _get_client, _rest_url, _headers
 
-    if not body.email or not body.name:
-        raise HTTPException(status_code=400, detail="Name and email are required")
+    if not body.email or not body.name or not body.password:
+        raise HTTPException(status_code=400, detail="Name, email and password are required")
 
     try:
         user = await get_or_create_user_by_email(body.email, body.name)
+
+        # 비밀번호 해싱 후 저장
+        if user:
+            password_hash = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            try:
+                client = _get_client()
+                await client.patch(
+                    _rest_url("users"),
+                    headers=_headers(),
+                    params={"id": f"eq.{user['id']}"},
+                    json={"password_hash": password_hash},
+                )
+            except Exception as e:
+                logger.warning(f"비밀번호 저장 실패 (비치명적): {e}")
         if not user:
             raise HTTPException(status_code=500, detail="Failed to create user")
 

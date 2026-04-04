@@ -12,6 +12,7 @@ export default function LoginPage() {
   const { language } = useLanguageStore();
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -23,14 +24,14 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || !password) return;
     setIsSubmitting(true);
     setError("");
     try {
-      const res = await loginWithEmail(email.trim());
+      const res = await loginWithEmail(email.trim(), password);
       login(res.access_token, res.user_id, res.name, res.email);
     } catch {
-      setError(language === "ko" ? "등록되지 않은 이메일입니다. 회원가입을 먼저 해주세요." : "Email not found. Please sign up first.");
+      setError(language === "ko" ? "이메일 또는 비밀번호가 올바르지 않습니다." : "Invalid email or password.");
     } finally {
       setIsSubmitting(false);
     }
@@ -67,6 +68,20 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="example@email.com"
                 required
+                className="w-full px-4 py-2.5 rounded-lg bg-[#0F172A] border border-[#22D3EE20] text-white text-sm placeholder-[#475569] outline-none focus:border-[#22D3EE] transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-[#94A3B8] mb-1.5">
+                {language === "ko" ? "비밀번호" : "Password"}
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
                 className="w-full px-4 py-2.5 rounded-lg bg-[#0F172A] border border-[#22D3EE20] text-white text-sm placeholder-[#475569] outline-none focus:border-[#22D3EE] transition"
               />
             </div>
