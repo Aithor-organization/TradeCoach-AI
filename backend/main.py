@@ -86,8 +86,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.exception_handler(RequestValidationError)
