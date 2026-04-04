@@ -116,6 +116,40 @@ async def _safe_generate_stream(
     raise last_error
 
 
+def _ensure_strategy_defaults(parsed: dict) -> dict:
+    """전략 JSON에 필수 필드 기본값 보장 (Gemini가 누락할 수 있음)"""
+    # 최상위 필수 필드
+    parsed.setdefault("market_type", "futures")
+    parsed.setdefault("leverage", 5)
+    parsed.setdefault("direction", "both")
+    parsed.setdefault("timeframe", "1h")
+    # target_pairs: target_pair → target_pairs 정규화
+    if "target_pairs" not in parsed:
+        pair = parsed.pop("target_pair", None) or "SOL/USDC"
+        parsed["target_pairs"] = [pair] if isinstance(pair, str) else pair
+    # target_pair도 편의상 유지
+    if "target_pair" not in parsed and parsed.get("target_pairs"):
+        parsed["target_pair"] = parsed["target_pairs"][0]
+    # position 기본값
+    pos = parsed.setdefault("position", {})
+    pos.setdefault("size_type", "fixed_usd")
+    pos.setdefault("size_value", 1000)
+    pos.setdefault("max_positions", 1)
+    # exit 기본값
+    ex = parsed.setdefault("exit", {})
+    tp = ex.setdefault("take_profit", {})
+    tp.setdefault("type", "percent")
+    tp.setdefault("value", 2.0)
+    sl = ex.setdefault("stop_loss", {})
+    sl.setdefault("type", "percent")
+    sl.setdefault("value", -0.5)
+    # entry 기본값
+    entry = parsed.setdefault("entry", {})
+    entry.setdefault("conditions", [])
+    entry.setdefault("logic", "AND")
+    return parsed
+
+
 def _extract_json_from_response(text: str) -> dict:
     """Gemini 응답에서 JSON 블록 추출"""
     json_str = text.strip()
@@ -185,7 +219,7 @@ async def parse_strategy_text(text: str, language: str = "ko") -> dict:
         [get_strategy_system_prompt(language), prompt],
         config=_make_config(temperature=0.3, max_output_tokens=2048),
     )
-    return _extract_json_from_response(result)
+    return _ensure_strategy_defaults(_extract_json_from_response(result))
 
 
 async def parse_strategy_multimodal(text: str, image: bytes, language: str = "ko") -> dict:
@@ -205,7 +239,7 @@ async def parse_strategy_multimodal(text: str, image: bytes, language: str = "ko
         contents,
         config=_make_config(temperature=0.3, max_output_tokens=2048),
     )
-    return _extract_json_from_response(result)
+    return _ensure_strategy_defaults(_extract_json_from_response(result))
 
 
 async def generate_strategy_explanation(parsed: dict, language: str = "ko") -> str:
