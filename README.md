@@ -191,15 +191,51 @@ TradeCoach-AI/
 
 ## 💰 비즈니스 모델
 
-### 프리미엄 구독 (핵심 수익)
+> **핵심**: 수익 분배가 백엔드 정책이 아니라 **온체인 Anchor 프로그램에 강제**되어 있어 운용사가 임의로 변경할 수 없습니다.
+
+### 1. 온체인 전략 마켓플레이스 — ✅ Devnet 구현 완료
+
+`strategy-marketplace` 프로그램 ([`BKmM7...nmU1`](https://explorer.solana.com/address/BKmM7ZHuKmg6f5FQbv6rTF44sJkYNR2UsSbvRFGgnmU1?cluster=devnet))이 다음 두 가지 거래를 자동 처리합니다.
+
+#### 1-1. 영구 구매 (Purchase)
+- 전략 owner가 `price_lamports` 설정 → 구매자가 SOL 결제
+- **수수료 분배: 95% 전략 owner / 5% 플랫폼 treasury** (`purchase.rs` — bps 단위 하드코딩)
+- 구매자는 해당 전략의 평생 사용권 획득
+
+#### 1-2. 일일 렌탈 (Rent)
+- 전략 owner가 `rent_lamports_per_day` 설정 → 임차인이 N일치 선결제 (Escrow)
+- `daily_settle` instruction이 일일 단위로 owner(95%)와 treasury(5%)에 분배
+- `expire_rental` instruction으로 만료 시 잔액 자동 환불
+- **에스크로 PDA가 자금을 잠그므로** owner가 임의 인출 불가
+
+#### 1-3. 수익 추적 + 청구
+- `Revenue` PDA에 누적 수익 자동 기록 (`total_earned`, `pending_amount`, `purchase_count`, `active_rentals`)
+- 전략 owner는 `claim_revenue` instruction으로 누적 수익 인출
+- 모든 거래가 온체인에 영구 기록 → 외부 운용사도 검증 가능
+
+### 2. 사용자 부담 (실측 비용, Devnet 기준)
+
+| 행동 | 비용 (SOL) | 환산 (USD, SOL=$200) |
+|---|---|---|
+| 모의투자 1회 Stop (Merkle root 기록) | 0.000005 | ~$0.001 |
+| 전략 register (PDA 659 bytes) | ~0.005 | ~$1.00 |
+| 영구 구매 1건 | gas + price_lamports | gas ~$0.001 + 전략가 |
+| 일일 렌탈 settle 1회 | ~0.000005 | ~$0.001 |
+
+> 추가 거래 비용은 사실상 **무료 수준**. 백엔드/AI 운영 비용은 아래 SaaS 구독으로 충당.
+
+### 3. SaaS 구독 — 🔜 로드맵 (Phase 3)
+
 | 티어 | 가격 | 기능 |
 |---|---|---|
-| **무료** | $0 | 기본 전략 빌딩 + 월 3회 백테스트 |
+| **무료** | $0 | 기본 전략 빌딩 + 월 3회 백테스트 + 마켓플레이스 거래 |
 | **프리미엄** | $9.99/월 | 무제한 백테스트 + 심층 AI 코칭 + 실시간 알림 + 고급 지표 |
 
-### 향후 확장
-- **전략 마켓플레이스 거래 수수료** — 검증된 cNFT 트랙레코드 거래 시
-- **카피트레이딩 수수료** — 거래 금액의 0.5~1%, 절반은 전략 원작자에게 (`strategy-marketplace` 프로그램이 온체인 분배 자동화)
+### 4. 추가 수익원 — 🔜 로드맵 (Phase 3)
+
+- **카피트레이딩 실행 수수료** — Jupiter Swap 통합 후, 카피된 거래 금액의 0.5~1% (절반은 전략 원작자)
+- **전략 NFT 2차 거래 로열티** — Strategy를 cNFT로 민팅 후, 마켓플레이스 재판매 시 원작자에게 로열티
+- **B2B API** — 헤지펀드 / 금융기관 대상 전략 검증 API 라이선스
 
 ---
 
