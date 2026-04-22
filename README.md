@@ -1,214 +1,273 @@
-# TradeCoach AI — 프로젝트 구체화 설계서
+# TradeCoach AI
 
-[![Solana](https://img.shields.io/badge/Solana-14F195?style=flat-square&logo=solana&logoColor=black)](https://solana.com)
+[![Solana](https://img.shields.io/badge/Solana-Devnet-14F195?style=flat-square&logo=solana&logoColor=black)](https://solana.com)
+[![Anchor](https://img.shields.io/badge/Anchor-0.31.1-512BD4?style=flat-square)](https://www.anchor-lang.com)
 [![Next.js](https://img.shields.io/badge/Next.js_15-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Gemini](https://img.shields.io/badge/Gemini_2.5-8E75B6?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
-[![TailwindCSS](https://img.shields.io/badge/Tailwind_v4-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Gemini](https://img.shields.io/badge/Gemini_3.1_Pro-8E75B6?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+
+> **누구나 자연어로 트레이딩 전략을 만들고, AI 코치에게 검증받고, 검증된 트랙레코드를 Solana 온체인에 영구 기록하는 플랫폼.**
+
+**팀**: Aithor · **대상 체인**: Solana · **현재 단계**: Devnet MVP
 
 ---
 
-## 빠른 시작
+## ⚡ 한 줄 가치 제안
 
-### 1. 저장소 복제
+**"AI가 대신 거래해주는 봇이 아니라, 사용자를 더 나은 트레이더로 만드는 코치 + 그 결과를 Solana 온체인에 검증 가능하게 기록하는 인프라."**
+
+---
+
+## 🚀 빠른 시작
+
 ```bash
+# 1. 클론
 git clone https://github.com/Aithor-organization/TradeCoach-AI.git
 cd TradeCoach-AI
-```
 
-### 2. 백엔드 (Python/FastAPI)
-```bash
+# 2. 백엔드 (Python 3.11+)
 cd backend
 pip install -r requirements.txt
-cp .env.example .env          # API 키 설정: GEMINI_API_KEY, SUPABASE_URL 등
+cp .env.example .env          # GEMINI_API_KEY, SUPABASE_URL 등 설정
 uvicorn main:app --reload     # http://localhost:8000
-```
 
-### 3. 프론트엔드 (Next.js/TypeScript)
-```bash
-cd frontend
+# 3. 프론트엔드 (Node 20+)
+cd ../frontend
 npm install
 cp .env.example .env.local
 npm run dev                   # http://localhost:3000
+
+# 4. (선택) Anchor 프로그램 빌드
+cd ../
+anchor build                  # programs/ 의 4개 프로그램 빌드
 ```
 
-> 기술 아키텍처: **[docs/architecture.md](docs/architecture.md)**
+> 상세 설정: **[docs/architecture.md](docs/architecture.md)** · **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**
 
 ---
 
-## Demo Video
+## 🎬 데모
 
-<video src="docs/TradeCoach AI - AI 트레이딩 코치 DEMO.mp4" width="100%" controls autoplay muted></video>
+<video src="docs/TradeCoach AI - AI 트레이딩 코치 DEMO.mp4" width="100%" controls muted></video>
 
-> 영상이 재생되지 않으면 [여기서 다운로드](docs/TradeCoach%20AI%20-%20AI%20%ED%8A%B8%EB%A0%88%EC%9D%B4%EB%94%A9%20%EC%BD%94%EC%B9%98%20DEMO.mp4)하여 확인하세요.
+> 영상이 재생되지 않으면 [여기서 다운로드](docs/TradeCoach%20AI%20-%20AI%20%ED%8A%B8%EB%A0%88%EC%9D%B4%EB%94%A9%20%EC%BD%94%EC%B9%98%20DEMO.mp4)
+
+### 스크린샷
+
+| 랜딩 페이지 | 채팅 (빈 상태) |
+|---|---|
+| ![Landing](docs/screenshots/01-landing-page.png) | ![Chat](docs/screenshots/02-chat-empty.png) |
+
+| 전략 카드 생성 | AI 코칭 대화 | 예시 템플릿 |
+|---|---|---|
+| ![Card](docs/screenshots/03-chat-strategy-card.png) | ![Coach](docs/screenshots/04-chat-ai-coaching.png) | ![Template](docs/screenshots/05-strategy-template.png) |
+
+---
+
+## 🎯 문제 정의
+
+| # | 문제 | 영향 |
+|---|---|---|
+| 1 | **감정적 거래 손실** | 패닉셀 / FOMO 매수로 개인 트레이더 대다수가 손실 |
+| 2 | **전략 작성 진입장벽** | Pine Script · Python 코딩 능력이 없으면 체계적 전략 불가능 |
+| 3 | **객관적 평가 도구 부재** | 백테스트 도구는 코딩 필요, 전략의 약점·개선점 분석 시스템 부재 |
+| 4 | **트랙레코드 신뢰성 문제** | 운용사가 사후 조작 가능 — 트레이더의 실력을 객관 검증할 방법 없음 |
 
 ---
 
-## 1. 프로젝트 개요
-### 프로젝트명: TradeCoach AI
-### 팀명: Aithor
-### 한 줄 소개: 누구나 자연어로 트레이딩 전략을 만들고, AI 코치에게 검증받는 솔라나 기반 플랫폼
-### 대상 블록체인: Solana
+## 💡 솔루션
 
-> 기술 아키텍처 설계: **[docs/architecture.md](docs/architecture.md)**
-
----
-## Demo Screenshots
-
-### 랜딩 페이지
-AI 트레이딩 코칭 플랫폼의 메인 화면. 4단계 코칭 프로세스, 핵심 기능 소개, 가격 정책을 한눈에 보여줍니다.
-
-![Landing Page](docs/screenshots/01-landing-page.png)
-
-### 채팅 인터페이스 (빈 상태)
-트레이딩 전략을 자연어로 입력할 수 있는 채팅 UI. 예시 버튼 클릭으로 빠르게 시작할 수 있습니다.
-
-![Chat Empty State](docs/screenshots/02-chat-empty.png)
-
-### 전략 카드 생성
-"RSI 30 이하에서 매수, 70 이상에서 매도"를 입력하면 Gemini 3.1 Pro가 구조화된 전략 카드로 변환합니다. 진입 조건, 익절/손절, 포지션 사이즈, 대상 페어, 타임프레임이 시각화됩니다.
-
-![Strategy Card](docs/screenshots/03-chat-strategy-card.png)
-
-### AI 코칭 대화
-전략 파싱 후 추가 대화를 통해 전략 수정, AI 코칭을 받을 수 있습니다.
-
-![AI Coaching](docs/screenshots/04-chat-ai-coaching.png)
-
-### 예시 템플릿
-여러 전략 템플릿이 존재하고 사용자가 선택할 수 있다.
-
-![Strategy Template](docs/screenshots/05-strategy-template.png)
-
----
-## 2. 문제 정의
-### 2-1. 감정적 거래로 인한 손실
-사람은 공포와 탐욕에 휘둘린다. 가격이 급락하면 패닉셀, 급등하면 FOMO 매수. 냉철하고 명확한 규칙 기반 거래가 근본적으로 어렵다. 이로 인해 개인 트레이더의 대다수가 손실을 본다.
-### 2-2. 전략 작성의 높은 진입장벽
-트레이딩 전략을 체계적으로 만들려면 코딩이나 스크립팅 능력이 필요하다. Pine Script, Python 등으로 전략을 코드화해야 백테스트가 가능한데, 대부분의 트레이더는 이 능력이 없다. 결국 머릿속 감으로 거래하거나, 남의 전략을 검증 없이 따라하게 된다.
-### 2-3. 전략의 객관적 평가·수정 도구 부재
-전략을 만들었다고 해도, 그 전략이 실제로 수익을 낼 수 있는지 객관적으로 평가할 방법이 없다. 백테스트 도구는 코딩이 필요하고, 전략의 약점을 분석해서 어떻게 개선해야 하는지 알려주는 시스템은 존재하지 않는다.
----
-## 3. 솔루션
-### 3-1. 핵심 컨셉
-TradeCoach AI는 AI가 대신 트레이딩해주는 플랫폼이 아니다. 사용자가 직접 전략을 만들고, AI 코치가 그 전략을 검증하고 개선점을 알려주며, 사용자를 더 나은 트레이더로 성장시키는 코칭 플랫폼이다.
-### 3-2. 핵심 플로우
 ```
-사용자 입력 (자연어/그림/전략 텍스트)
+사용자 입력 (자연어 / 차트 이미지 / 전략 텍스트)
         ↓
-AI 전략 구조화 (Gemini 3.1 Pro)
+AI 전략 구조화 (Gemini 3.1 Pro 멀티모달)
         ↓
-백테스트 (솔라나 DEX 온체인 과거 데이터)
+백테스트 (Binance OHLCV 과거 데이터)
         ↓
 AI 코칭 (리스크 분석 + 개선점 제안)
         ↓
-대화를 통한 전략 수정
+대화형 전략 수정 → 재백테스트 → 반복
         ↓
-재백테스트 → 반복하며 전략 발전
+모의투자 검증 (Paper Trading)
+        ↓
+✅ 검증된 트랙레코드를 Solana 온체인에 영구 기록 (cNFT + Append-only Signal PDAs)
 ```
-### 3-3. 타겟 사용자
-- 코딩/스크립팅 능력이 없어서 전략을 만들지 못하는 트레이더
-- 솔라나 DEX 트레이딩에 처음 진입하려는 초보자
-- 전략은 있지만 객관적으로 평가하고 개선할 방법이 없는 중급 트레이더
+
 ---
-## 4. 핵심 기능
-### 4-1. Strategy Builder (전략 생성)
-사용자가 코딩 없이 자신의 트레이딩 아이디어를 전략으로 변환할 수 있다.
-**입력 방식:**
-- 자연어 텍스트: "거래량이 갑자기 3배 이상 늘어난 토큰을 발견하면 소액 진입, 20% 수익 시 절반 익절"
-- 차트 이미지: 캔들 차트 캡처를 업로드하면 AI가 패턴을 읽어 전략으로 변환
-- 전략 텍스트: 다른 곳에서 본 전략 텍스트를 붙여넣으면 AI가 해석해서 구조화
-**출력:** 진입 조건, 포지션 사이즈, 익절 규칙, 손절 규칙, 대상 토큰 필터 등이 정리된 구조화된 전략 카드
-### 4-2. AI Risk Coach (AI 코칭 & 백테스트)
-생성된 전략을 솔라나 DEX 온체인 과거 데이터로 백테스트하고, AI 코치가 대화형으로 피드백한다.
-**단순 백테스트 결과 표시가 아닌 코칭:**
-- "이 전략의 최대 낙폭(MDD)이 -67%입니다. 일반적으로 지속 가능한 트레이딩에서는 MDD를 -30% 이내로 관리합니다. 포지션 사이즈를 줄여볼까요?"
-- "손절 라인을 -50%에서 -30%로 좁히면 승률은 떨어지지만 리스크가 크게 줄어듭니다. 조정 후 다시 돌려볼까요?"
-- "이 전략은 상승장에서는 강하지만 횡보장에서 손실이 큽니다. 횡보장 필터 조건을 추가하는 건 어떨까요?"
-**핵심:** 사용자가 AI와 대화하면서 전략을 반복적으로 수정 → 재백테스트 → 개선하는 과정에서 리스크 관리를 자연스럽게 학습한다.
-### 4-3. Paper Trading Arena (모의투자) — MVP 이후 확장
-검증된 전략을 실시간 솔라나 DEX 가격 데이터와 연동하여 가상 자금으로 모의투자를 실행한다. 리더보드를 통해 다른 사용자와 성과를 비교할 수 있다.
-### 4-4. 전략 공유 마켓플레이스 — MVP 이후 확장
-검증된 전략을 다른 사용자와 공유하거나 카피할 수 있는 마켓플레이스. 원작자에게 수수료가 지급되는 구조.
+
+## 🛠️ 핵심 기능
+
+### 현재 작동 (Devnet MVP) ✅
+- **Strategy Builder**: Gemini 3.1 Pro 멀티모달로 자연어 / 이미지 / 텍스트 → 구조화된 전략 카드
+- **AI Risk Coach**: 백테스트 결과 기반 대화형 코칭 (MDD, 승률, 샤프 등 정량 지표 + AI 피드백)
+- **Backtest Engine**: Python FastAPI, Binance OHLCV 과거 데이터로 전략 검증
+- **Phantom Wallet 연동**: Solana 지갑 연결
+- **Solana Anchor Programs (Devnet 배포)**:
+  - `strategy-registry` — 전략 메타데이터 등록 / 일시정지 / 삭제
+  - `signal-recorder` — 매매 신호 기록 (Pyth Oracle 듀얼 가격 검증)
+  - `strategy-marketplace` — 전략 판매 / 렌탈 / 에스크로
+  - `performance-verifier` — 성능 메트릭 갱신, 트랙레코드 검증, 랭킹
+
+### 로드맵 🔜
+- **Paper Trading Arena**: 실시간 가상 자금 모의투자 + 리더보드
+- **State Compression 기반 cNFT 트랙레코드**: Strategy를 cNFT로 민팅, Signal을 ConcurrentMerkleTree로 압축 기록 (~$50 / 100만 건)
+- **Jupiter Swap API 연동**: 검증된 전략의 실제 DEX 실행 (현재 가격 조회는 CoinGecko, Swap은 미구현)
+- **전략 NFT 마켓플레이스**: 검증된 트랙레코드 기반 전략 거래 + 카피트레이딩
+
 ---
-## 5. 기술 아키텍처
-### 5-1. AI 레이어
-- **Gemini 3.1 Pro:** 핵심 AI 엔진. 멀티모달 입력(자연어, 이미지, 텍스트) → 전략 파싱 + 대화형 코칭. 차트 이미지를 읽어 패턴을 해석하고 전략으로 변환하는 것까지 가능.
-- **RAG (Retrieval-Augmented Generation):** 솔라나 토큰 데이터(가격, 거래량, 유동성, 토큰 정보) + 트레이딩 지식 베이스를 실시간으로 연동하여 AI의 코칭 품질을 높임.
-### 5-2. 데이터 레이어
-- **Binance API:** OHLCV 과거 데이터 수집 (가격, 거래량). 백테스트 엔진의 데이터 소스.
-- **Jupiter Quote API:** 솔라나 토큰 실시간 가격 조회 (무료, API 키 불필요).
-- **백테스트 엔진:** Python FastAPI 기반. 전략을 과거 데이터에 적용하여 수익률, MDD, 샤프 비율, 승률 등 정량 지표를 산출.
-### 5-3. 프론트엔드
-- **Next.js + TailwindCSS:** 채팅 기반 UI로 전략 빌딩과 AI 코칭 대화를 구현. 전략 카드, 백테스트 결과 차트 등 시각화.
-### 5-4. 블록체인 레이어
-- **Solana Web3.js + Anchor Framework:** 솔라나 네트워크 연동.
-- **Phantom Wallet:** 사용자 지갑 연결.
-- **(향후) Jupiter Swap API:** 전략 실제 실행 시 DEX 트레이딩 연동.
-### 5-5. 인프라
-- Vercel (프론트엔드 배포)
-- Railway 또는 Render (백엔드 배포)
-- Helius RPC (솔라나 노드)
+
+## 🏗️ 기술 아키텍처
+
+### AI 레이어
+- **Gemini 3.1 Pro** — 핵심 AI 엔진 (멀티모달 입력, 전략 파싱, 대화형 코칭)
+- **RAG 파이프라인** — 솔라나 토큰 데이터 + 트레이딩 지식 베이스 실시간 연동
+
+### 데이터 레이어
+- **Binance REST API** — OHLCV 과거 데이터 (백테스트 데이터 소스)
+- **CoinGecko Price API** — 실시간 토큰 가격 (`backend/services/jupiter.py`, 무료, API 키 불필요)
+- **Pyth Network Oracle** — Signal 기록 시 듀얼 가격 검증 (exchange vs Pyth)
+- **Helius DAS API** — Solana RPC + 자산 조회
+
+### 백엔드 (`backend/`)
+- **Python 3.11 + FastAPI 0.115**
+- **Supabase** (PostgreSQL + Auth)
+- **services/blockchain/** — 9개 모듈 (Anchor 클라이언트, Pyth, Merkle Tree, cNFT 민팅)
+- **services/marketplace/** — 에스크로 서비스
+- **services/dispatch/** — 신호 디스패처
+
+### 프론트엔드 (`frontend/`)
+- **Next.js 15** + **React 19** + **TailwindCSS v4**
+- **@solana/wallet-adapter-react** (Phantom)
+- **@solana/web3.js** (트랜잭션)
+- **@metaplex-foundation/mpl-bubblegum** + **@solana/spl-account-compression** (cNFT 인프라 — 향후 활용)
+
+### 블록체인 레이어 (`programs/`)
+- **Anchor Framework 0.31.1** · **Solana Devnet**
+- 4개 Anchor 프로그램 (Program ID는 `Anchor.toml`)
+
+### 인프라
+- **Vercel** (프론트엔드 배포)
+- **Docker Compose + Nginx** (`docker-compose.prod.yml` + `nginx/`) — 백엔드 프로덕션 스택
+- **Supabase Migrations** — `supabase/migrations/` (phase4 blockchain, phase6 marketplace)
+
 ---
-## 6. 왜 솔라나인가
-- **온체인 데이터 완전 공개:** 모든 거래 데이터가 온체인에 기록되어 있어 백테스트에 필요한 과거 데이터에 누구나 접근 가능. 전통 금융에서는 블룸버그 터미널에 수천만 원 내야 볼 수 있는 수준의 데이터.
-- **속도와 비용:** 400ms 트랜잭션, 극저수수료. 이더리움의 가스비 문제 없이 전략 실행 가능.
-- **DeFi 인프라:** Jupiter, Raydium 등 성숙한 DEX 인프라가 이미 갖춰져 있어 트레이딩 연동이 용이.
-- **커뮤니티:** 솔라나 생태계의 활발한 트레이딩 커뮤니티 = 초기 사용자 확보에 유리.
+
+## 🔥 왜 솔라나인가
+
+1. **State Compression 고유 기술** — 트레이딩 신호처럼 고빈도로 누적되는 데이터를 cNFT + ConcurrentMerkleTree로 영구 기록 시 **100만 건 ~$50** 수준. EVM 체인에서는 경제적으로 불가능.
+2. **속도와 비용** — 400ms 트랜잭션, 신호 1건 기록 ~$0.0005. 실시간 매매 기록 도메인에 자연 적합.
+3. **Pyth Oracle 네이티브 지원** — Signal PDA에 `exchange_price` + `pyth_price` 듀얼 검증 (`programs/signal-recorder/src/state/signal.rs`).
+4. **DeFi 인프라** — Jupiter, Raydium 등 성숙한 DEX와의 향후 swap 연동 용이.
+5. **활발한 트레이딩 커뮤니티** — 초기 사용자 확보에 유리.
+
 ---
-## 7. 비즈니스 모델
-### 7-1. 프리미엄 구독 (핵심 수익)
-- **무료 티어:** 기본 전략 빌딩 + 월 3회 백테스트 (사용자 유입용)
-- **프리미엄 (월 $9.99):** 무제한 백테스트 + 심층 AI 코칭 + 실시간 알림 + 고급 지표 분석
-### 7-2. 향후 확장 수익
-- **전략 공유 마켓플레이스:** 검증된 전략 거래 시 수수료
-- **카피트레이딩 수수료:** 카피 실행 시 거래 금액의 0.5~1%, 절반은 전략 원작자에게 지급
+
+## 📂 저장소 구조
+
+```
+TradeCoach-AI/
+├── programs/                       # Anchor 프로그램 4개 (Solana 온체인)
+│   ├── strategy-registry/          #   전략 등록 / 관리
+│   ├── signal-recorder/            #   매매 신호 기록 (Pyth 듀얼 가격)
+│   ├── strategy-marketplace/       #   판매 / 렌탈 / 에스크로
+│   └── performance-verifier/       #   성능 메트릭 / 랭킹
+├── backend/                        # Python FastAPI
+│   ├── routers/                    #   API 엔드포인트
+│   └── services/
+│       ├── blockchain/             #   Solana 통합 (9개 모듈)
+│       ├── marketplace/            #   에스크로 서비스
+│       └── dispatch/               #   신호 디스패처
+├── frontend/                       # Next.js 15 + React 19
+│   ├── app/                        #   App Router
+│   └── components/                 #   wallet/, market/, chat/ ...
+├── supabase/migrations/            # PostgreSQL 스키마 (phase4 + phase6)
+├── docs/                           # 아키텍처, 배포, 성능 검토 문서
+├── nginx/                          # 프로덕션 리버스 프록시 설정
+└── docker-compose.prod.yml         # 프로덕션 배포 스택
+```
+
 ---
-## 8. 팀 구성
+
+## 💰 비즈니스 모델
+
+### 프리미엄 구독 (핵심 수익)
+| 티어 | 가격 | 기능 |
+|---|---|---|
+| **무료** | $0 | 기본 전략 빌딩 + 월 3회 백테스트 |
+| **프리미엄** | $9.99/월 | 무제한 백테스트 + 심층 AI 코칭 + 실시간 알림 + 고급 지표 |
+
+### 향후 확장
+- **전략 마켓플레이스 거래 수수료** — 검증된 cNFT 트랙레코드 거래 시
+- **카피트레이딩 수수료** — 거래 금액의 0.5~1%, 절반은 전략 원작자에게 (`strategy-marketplace` 프로그램이 온체인 분배 자동화)
+
+---
+
+## 👥 팀
+
 ### 서현 — 기획 / 사업개발 / 고객 검증
-- 웹 에이전시 프론트엔드 개발자 → PM으로 전환, 고객·개발·디자인 소통 경험
+- 웹 에이전시 프론트엔드 개발자 → PM 전환, 고객·개발·디자인 소통 경험
 - 한경닷컴 AI 스타트업 레볼루션 사업개발자 과정 우수 수료
-- XRPL 해커톤 참가
-- 20살에 파이썬 모의 주식 트레이딩 시스템 개발
+- XRPL 해커톤 참가, 20살에 파이썬 모의 주식 트레이딩 시스템 개발
+
 ### 서훈 — 풀스택 AI 개발
-- 프론트엔드부터 백엔드, AI 모델 연동까지 원스톱 구현 가능
+- 프론트엔드부터 백엔드, AI 모델 연동, Anchor 프로그램까지 원스톱 구현 가능
 - AI 기반 프로젝트 다수 빌딩 경험
+
 ### 유인희 — 트레이딩 + AI 도메인 전문가
 - 주식·선물 트레이딩 + AI 분야 20년 이상 현업 경력
 - 백테스트 엔진 설계 및 트레이딩 전략 로직 자문
+
 ---
-## 9. 개발 로드맵
-### Phase 1: 스타트업 빌리지 7일 (MVP)
-**반드시 구현:**
-- 채팅 기반 전략 빌더 UI (자연어 입력)
-- Gemini 3.1 Pro 연동 전략 파싱
-- 백테스트 결과 표시 + AI 코칭 대화
-- 솔라나 지갑 연동 (Phantom)
-**가능하면 구현:**
-- 이미지 입력 (차트 캡처 → 전략 변환)
-- 전략 카드 시각화
-### Phase 2: Colosseum 해커톤 (4~5월)
-- 모의투자 기능 (Paper Trading Arena)
-- 리더보드
-- 전략 공유 기능
-### Phase 3: 퍼블릭 런칭 (이후)
-- 카피트레이딩 실행 (Jupiter API 연동)
-- 전략 NFT 마켓플레이스
+
+## 🗺️ 개발 로드맵
+
+### Phase 1: 스타트업 빌리지 (MVP) — ✅ 완료
+- 채팅 기반 전략 빌더 UI (자연어 + 차트 이미지 입력)
+- Gemini 3.1 Pro 전략 파싱 + AI 코칭 대화
+- Phantom 지갑 연동
+- 백테스트 결과 시각화
+
+### Phase 2: Solana Hackathon — 🔄 진행 중
+- ✅ Anchor 4 프로그램 작성 + Devnet 배포
+- ✅ Pyth Oracle 듀얼 가격 검증
+- ✅ Supabase 마켓플레이스 스키마 (phase6)
+- 🔜 Strategy cNFT 민팅 통합 (mpl-bubblegum + spl-account-compression)
+- 🔜 Signal ConcurrentMerkleTree 기반 영구 기록 (State Compression)
+- 🔜 Paper Trading Arena + 리더보드
+
+### Phase 3: 퍼블릭 런칭
+- Jupiter Swap API 연동 → 실제 DEX 트레이딩 실행
+- 카피트레이딩 + 수수료 분배 (strategy-marketplace 활용)
 - 프리미엄 구독 결제 시스템
----
-## 10. 경쟁 환경 및 차별점
-### 기존 AI 트레이딩 도구들의 접근
-Buff.trade 등 기존 프로젝트는 AI 에이전트가 자율적으로 트레이딩하고, 전략을 토큰화하여 사용자는 투자만 하는 구조. 사용자는 왜 수익이 났는지, 왜 손실이 났는지 알 수 없고, AI에 대한 의존만 커진다.
-### TradeCoach AI의 차별점
-- **전략의 주체가 사용자:** AI가 대신 해주는 게 아니라, 사용자가 직접 전략을 만들고 AI는 코치 역할
-- **멀티모달 입력:** 자연어뿐 아니라 차트 이미지, 전략 텍스트 등 다양한 입력 방식 지원 (Gemini 3.1 Pro 멀티모달 활용)
-- **대화형 코칭:** 단순 백테스트 결과 표시가 아닌, AI와 대화하며 전략을 반복적으로 개선
-- **교육 효과:** 사용자가 AI 코칭 과정에서 리스크 관리, 전략 설계 원칙을 자연스럽게 학습
 
 ---
-## 11. 기여 & 라이선스
 
-기여를 환영합니다! [CONTRIBUTING.md](CONTRIBUTING.md)를 참고해주세요.
+## 🆚 경쟁 차별점
 
-이 프로젝트는 [MIT 라이선스](LICENSE)를 따릅니다.
+| 항목 | 기존 AI 트레이딩 봇 (Buff.trade 등) | TradeCoach AI |
+|---|---|---|
+| **주체** | AI가 자율적으로 거래 | 사용자가 직접 전략, AI는 코치 |
+| **투명성** | "왜 수익?", "왜 손실?" 알 수 없음 | 모든 매매 기록이 온체인 검증 가능 |
+| **입력 방식** | 정형 파라미터만 | 자연어 + 차트 이미지 + 전략 텍스트 (멀티모달) |
+| **학습 효과** | 사용자 의존성만 증가 | 코칭으로 리스크 관리 원칙을 자연스럽게 학습 |
+| **트랙레코드** | 운용사 자체 발표 (조작 가능) | Solana cNFT + Append-only Signal PDA (변조 불가) |
+
+---
+
+## 📜 라이선스 & 기여
+
+- 라이선스: [MIT](LICENSE)
+- 기여 가이드: [CONTRIBUTING.md](CONTRIBUTING.md)
+- 이슈 / 제안: [GitHub Issues](https://github.com/Aithor-organization/TradeCoach-AI/issues)
+
+---
+
+## 🔗 링크
+
+- **GitHub**: https://github.com/Aithor-organization/TradeCoach-AI
+- **Anchor Programs (Devnet)**:
+  - strategy-registry: [`6Euhm...c6Bo`](https://explorer.solana.com/address/6EuhmRPHqN4r6SoP8anEpm2ZmVuQoHLLWre4zEPdc6Bo?cluster=devnet)
+  - signal-recorder: [`HydMV...2J89`](https://explorer.solana.com/address/HydMVYPxrrCkFAnwaZLKeYzPoEvF1qSSDYnX1fSC2J89?cluster=devnet)
+  - strategy-marketplace: [`BKmM7...nmU1`](https://explorer.solana.com/address/BKmM7ZHuKmg6f5FQbv6rTF44sJkYNR2UsSbvRFGgnmU1?cluster=devnet)
+  - performance-verifier: [`J3Lev...9NCL`](https://explorer.solana.com/address/J3LeviD4zd9y5izVHLLwgopvEM82A9aUdgXi29wioNCL?cluster=devnet)
