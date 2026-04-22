@@ -1,0 +1,21 @@
+[package]
+name = "signal-recorder"
+version = "0.1.0"
+description = "StrategyVault - Signal Recorder Program (Pyth Oracle + dual price)"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "signal_recorder"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
+strategy-registry = { path = "../strategy-registry", features = ["cpi"] }

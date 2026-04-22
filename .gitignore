@@ -36,3 +36,17 @@ yarn-error.log*
 
 # Supabase Local data
 supabase/.temp/
+
+# Solana / Anchor build artifacts (heavy, regeneratable)
+target/
+**/target/
+.anchor/
+
+# Market data caches (regeneratable)
+backend/data/futures_cache/
+
+# MCP / IDE local config
+.serena/
+
+# Accidental pip command output files (e.g. created by `pip install pkg=1.65.0` typo)
+backend/=*
