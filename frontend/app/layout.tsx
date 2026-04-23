@@ -4,6 +4,7 @@ import "./globals.css";
 import WalletProvider from "@/components/wallet/WalletProvider";
 import { ToastProvider } from "@/components/common/Toast";
 import ErrorBoundary from "@/components/common/ErrorBoundary";
+import AuthExpiryWatcher from "@/components/common/AuthExpiryWatcher";
 
 const GA_ID = "G-2YJY4GB90E";
 
@@ -42,6 +43,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <WalletProvider>
             <ToastProvider>
+              <AuthExpiryWatcher />
               {children}
             </ToastProvider>
           </WalletProvider>

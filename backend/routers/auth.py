@@ -194,20 +194,13 @@ async def login_with_email(request: Request, body: EmailLoginRequest):
         # 비밀번호 검증
         stored_hash = user.get("password_hash")
         if not stored_hash:
-            # 기존 유저(비밀번호 미설정): 기본 비밀번호 admin1234로 해시 생성 후 저장
-            default_pw = "admin1234"
-            new_hash = bcrypt.hashpw(default_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            try:
-                await client.patch(
-                    _rest_url("users"),
-                    headers=_headers(),
-                    params={"id": f"eq.{user['id']}"},
-                    json={"password_hash": new_hash},
-                )
-                logger.info(f"기존 유저에 기본 비밀번호 설정: {body.email}")
-            except Exception as e:
-                logger.warning(f"기본 비밀번호 저장 실패: {e}")
-            stored_hash = new_hash
+            # 🔴 SECURITY: password_hash가 NULL인 계정은 로그인 금지 (공격자가 admin1234 등으로 덮어쓰는 취약점 방지)
+            # 이런 계정은 비밀번호 재설정 플로우로 본인 확인 후 설정해야 함.
+            logger.warning(f"password_hash 미설정 계정 로그인 시도: {body.email}")
+            raise HTTPException(
+                status_code=403,
+                detail="비밀번호가 설정되지 않은 계정입니다. 비밀번호 재설정을 요청해주세요.",
+            )
         if not bcrypt.checkpw(body.password.encode("utf-8"), stored_hash.encode("utf-8")):
             raise HTTPException(status_code=401, detail="비밀번호가 일치하지 않습니다.")
 

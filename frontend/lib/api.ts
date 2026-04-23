@@ -102,6 +102,13 @@ export async function sendMessageStream(
   });
 
   if (!res.ok) {
+    // 401: 토큰 만료 → 자동 로그아웃 (fetcher와 동일한 정책)
+    if (res.status === 401 && typeof window !== "undefined") {
+      console.warn("[API] stream 401 — 토큰 만료, 자동 로그아웃");
+      localStorage.removeItem("tc_token");
+      const { useAuthStore } = await import("@/stores/authStore");
+      useAuthStore.getState().logout();
+    }
     const error = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(error.detail || "API Error");
   }

@@ -9,11 +9,12 @@ interface AuthState {
   token: string | null;
   login: (token: string, userId: string, name: string, email: string) => void;
   logout: () => void;
+  checkTokenExpiry: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       isAuthenticated: false,
       userId: null,
       name: null,
@@ -26,6 +27,25 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem("tc_token");
         set({ isAuthenticated: false, token: null, userId: null, name: null, email: null });
+      },
+      checkTokenExpiry: () => {
+        if (typeof window === "undefined") return;
+        const state = get();
+        const token = state.token ?? localStorage.getItem("tc_token");
+        if (!token) {
+          if (state.isAuthenticated) get().logout();
+          return;
+        }
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          if (!payload.exp || payload.exp * 1000 < Date.now()) {
+            console.warn("[authStore] 토큰 만료 감지, 자동 로그아웃");
+            get().logout();
+          }
+        } catch {
+          console.warn("[authStore] 토큰 파싱 실패, 자동 로그아웃");
+          get().logout();
+        }
       },
     }),
     {
