@@ -105,6 +105,14 @@ export default function LoginPage() {
                 {language === "ko" ? "회원가입" : "Sign Up"}
               </Link>
             </p>
+            <Link
+              href="/forgot-password"
+              className="block text-xs text-[#22D3EE] hover:underline"
+            >
+              {language === "ko"
+                ? "비밀번호를 잊으셨나요? (Phantom 지갑으로 재설정)"
+                : "Forgot password? (reset with Phantom wallet)"}
+            </Link>
             <Link href="/" className="block text-xs text-[#475569] hover:text-[#94A3B8]">
               {language === "ko" ? "← 홈으로 돌아가기" : "← Back to home"}
             </Link>

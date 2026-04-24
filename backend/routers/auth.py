@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from models.user import (
     WalletAuthRequest, WalletVerifyRequest, NonceResponse, AuthResponse, UserResponse,
     EmailRegisterRequest, EmailLoginRequest, EmailAuthResponse,
-    PasswordResetRequest, PasswordResetConfirm, PasswordResetResponse,
+    WalletResetNonceRequest, WalletResetConfirm, WalletResetNonceResponse,
 )
 from config import get_settings
 from dependencies import require_auth
@@ -69,11 +69,29 @@ def _create_jwt_token(user_id: str, **extra_claims) -> str:
 # 인메모리 폴백 (Supabase 연결 안 될 때)
 _nonce_store: dict[str, str] = {}
 
-# 🔴 MVP 비밀번호 재설정 토큰 저장소 (인메모리, 서버 재시작 시 휘발).
-# Production에서는 `password_reset_tokens` 테이블 또는 Redis로 이전 필요.
-# 토큰은 1회 사용 후 즉시 폐기, TTL 30분.
-_reset_tokens: dict[str, dict] = {}
-RESET_TOKEN_TTL_MINUTES = 30
+# 🔴 비밀번호 재설정용 nonce 저장소 (로그인 nonce와 분리 — cross-purpose 재사용 방지).
+# 인메모리, 서버 재시작 시 휘발. TTL 15분.
+_reset_nonce_store: dict[str, dict] = {}
+RESET_NONCE_TTL_MINUTES = 15
+# 🔴 서명 대상 메시지 prefix — 로그인 nonce 서명이 reset 용도로 replay 되지 않도록 바인딩.
+RESET_MESSAGE_PREFIX = "TradeCoach-AI password reset: "
+
+
+def _mask_email(s: str) -> str:
+    """로그 출력용 이메일/식별자 마스킹. user@example.com → u***@e***.com.
+
+    이메일 형식이 아니면 앞 3자 + *** 형태로 잘라 반환 (지갑 주소 등).
+    """
+    if not s:
+        return "***"
+    if "@" in s:
+        local, _, domain = s.partition("@")
+        head = local[:1] if local else "*"
+        if "." in domain:
+            dhead, _, dtld = domain.rpartition(".")
+            return f"{head}***@{dhead[:1]}***.{dtld}"
+        return f"{head}***@***"
+    return f"{s[:3]}***"
 
 
 @router.post("/wallet", response_model=NonceResponse)
@@ -201,7 +219,7 @@ async def login_with_email(request: Request, body: EmailLoginRequest):
         GENERIC_AUTH_ERROR = "이메일 또는 비밀번호가 일치하지 않습니다."
 
         if res.status_code != 200 or not res.json():
-            logger.info(f"로그인 실패(미가입 이메일): {body.email}")
+            logger.info(f"로그인 실패(미가입 이메일): {_mask_email(body.email)}")
             raise HTTPException(status_code=401, detail=GENERIC_AUTH_ERROR)
 
         user = res.json()[0]
@@ -211,10 +229,10 @@ async def login_with_email(request: Request, body: EmailLoginRequest):
         if not stored_hash:
             # password_hash가 NULL인 계정 (과거 wallet-only 가입자). admin1234 자동 덮어쓰기는 삭제됨.
             # 이런 계정은 비밀번호 재설정 플로우 필요 — 사용자에게는 동일한 메시지로 응답하여 이메일 존재 노출 방지.
-            logger.warning(f"로그인 실패(password_hash 미설정): {body.email}")
+            logger.warning(f"로그인 실패(password_hash 미설정): {_mask_email(body.email)}")
             raise HTTPException(status_code=401, detail=GENERIC_AUTH_ERROR)
         if not bcrypt.checkpw(body.password.encode("utf-8"), stored_hash.encode("utf-8")):
-            logger.info(f"로그인 실패(비밀번호 불일치): {body.email}")
+            logger.info(f"로그인 실패(비밀번호 불일치): {_mask_email(body.email)}")
             raise HTTPException(status_code=401, detail=GENERIC_AUTH_ERROR)
 
         access_token = _create_jwt_token(
@@ -233,7 +251,7 @@ async def login_with_email(request: Request, body: EmailLoginRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"이메일 로그인 실패 (email={body.email}): {e}", exc_info=True)
+        logger.error(f"이메일 로그인 실패 (email={_mask_email(body.email)}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Login failed")
 
 
@@ -272,14 +290,14 @@ async def register_with_email(request: Request, body: EmailRegisterRequest):
                 params={"wallet_address": f"eq.{body.email}", "select": "id,password_hash"},
             )
             if verify_res.status_code != 200 or not verify_res.json():
-                logger.error(f"회원가입 DB 저장 검증 실패: 유저가 DB에 없음 (email={body.email})")
+                logger.error(f"회원가입 DB 저장 검증 실패: 유저가 DB에 없음 (email={_mask_email(body.email)})")
                 raise HTTPException(status_code=500, detail="User created but not found in DB — please retry")
             verified_user = verify_res.json()[0]
             if not verified_user.get("password_hash"):
                 # password_hash 컬럼 자체가 없거나, PATCH도 실패해서 NULL로 남은 경우.
                 # 이 상태로 JWT를 발급하면 유저는 "가입 성공"으로 보이지만 로그인 불가.
                 logger.error(
-                    f"회원가입 후 password_hash 저장 안 됨 — Supabase 컬럼 점검 필요 (email={body.email})"
+                    f"회원가입 후 password_hash 저장 안 됨 — Supabase 컬럼 점검 필요 (email={_mask_email(body.email)})"
                 )
                 raise HTTPException(
                     status_code=500,
@@ -303,89 +321,109 @@ async def register_with_email(request: Request, body: EmailRegisterRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"이메일 가입 실패 (email={body.email}): {e}", exc_info=True)
+        logger.error(f"이메일 가입 실패 (email={_mask_email(body.email)}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Registration failed")
 
 
-@router.post("/password/reset-request", response_model=PasswordResetResponse)
+@router.post("/password/reset-wallet-nonce", response_model=WalletResetNonceResponse)
 @limiter.limit("3/minute")
-async def password_reset_request(request: Request, body: PasswordResetRequest):
-    """비밀번호 재설정 토큰 발급 요청.
+async def password_reset_wallet_nonce(request: Request, body: WalletResetNonceRequest):
+    """비밀번호 재설정용 nonce 발급 (Phantom 지갑 서명 기반).
 
-    🔴 SECURITY: 이메일 존재 여부에 관계없이 동일한 응답을 반환해 enumeration을 차단한다.
-    실제 이메일 발송 인프라가 통합되기 전까지는 재설정 링크를 서버 로그에만 기록한다
-    (운영자가 수동으로 사용자에게 전달하거나, 향후 Email 서비스 연동 시 이 부분만 교체).
+    🔴 SECURITY:
+    - 이메일 전송 인프라 없이 지갑 서명으로 본인 증명.
+    - 지갑 등록 여부와 무관하게 nonce 발급 → enumeration 방지.
+    - 서명 대상은 `RESET_MESSAGE_PREFIX + nonce`로 고정해 로그인 nonce와 cross-purpose replay 차단.
+    - nonce는 15분 TTL, 1회 사용.
     """
-    from services.supabase_client import _is_available, _get_client, _rest_url, _headers
-
-    try:
-        if _is_available():
-            client = _get_client()
-            res = await client.get(
-                _rest_url("users"),
-                headers=_headers(),
-                params={"wallet_address": f"eq.{body.email}", "select": "id,wallet_address"},
-            )
-            if res.status_code == 200 and res.json():
-                user = res.json()[0]
-                token = secrets.token_urlsafe(48)  # 384-bit entropy
-                expires_at = datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_TTL_MINUTES)
-                _reset_tokens[token] = {
-                    "user_id": user["id"],
-                    "email": body.email,
-                    "expires_at": expires_at,
-                }
-                # TODO(email-integration): 실제 이메일 발송으로 교체. 현재는 로그로만 출력.
-                reset_link = f"/auth/password/reset?token={token}"
-                logger.warning(
-                    "[PASSWORD_RESET] email=%s expires_at=%s link_path=%s (전송 인프라 없음: 수동 전달 필요)",
-                    body.email, expires_at.isoformat(), reset_link,
-                )
-            else:
-                logger.info(f"[PASSWORD_RESET] 미등록 이메일 요청(무시): {body.email}")
-    except Exception as e:
-        # 실패해도 응답은 동일 — enumeration 방지
-        logger.error(f"password_reset_request 내부 오류 (email={body.email}): {e}", exc_info=True)
-
-    return PasswordResetResponse()
+    nonce = secrets.token_hex(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=RESET_NONCE_TTL_MINUTES)
+    _reset_nonce_store[body.wallet_address] = {
+        "nonce": nonce,
+        "expires_at": expires_at,
+    }
+    logger.info(
+        "[PASSWORD_RESET_NONCE] wallet=%s expires_at=%s",
+        _mask_email(body.wallet_address), expires_at.isoformat(),
+    )
+    return WalletResetNonceResponse(nonce=nonce)
 
 
-@router.post("/password/reset-confirm")
+@router.post("/password/reset-wallet-confirm")
 @limiter.limit("5/minute")
-async def password_reset_confirm(request: Request, body: PasswordResetConfirm):
-    """재설정 토큰으로 새 비밀번호 설정 (1회 사용)."""
+async def password_reset_wallet_confirm(request: Request, body: WalletResetConfirm):
+    """Wallet 서명으로 본인 증명 후 비밀번호 재설정.
+
+    플로우:
+    1. Client: /password/reset-wallet-nonce로 nonce 발급
+    2. Client: Phantom으로 `RESET_MESSAGE_PREFIX + nonce` 메시지 서명
+    3. Client: wallet_address + nonce + signature + new_password로 이 엔드포인트 호출
+    4. Server: nonce 유효성 + 서명 검증 + users 테이블에 해당 지갑 존재 여부 확인
+    5. Server: 성공 시 password_hash 업데이트 + nonce 폐기
+    """
     import bcrypt
     from services.supabase_client import _is_available, _get_client, _rest_url, _headers
 
-    token_data = _reset_tokens.get(body.token)
-    if not token_data or token_data["expires_at"] < datetime.now(timezone.utc):
-        # 만료된 경우 명시적 제거
-        if token_data:
-            _reset_tokens.pop(body.token, None)
-        raise HTTPException(status_code=400, detail="유효하지 않거나 만료된 토큰입니다.")
+    # 1. nonce 유효성 검사
+    stored = _reset_nonce_store.get(body.wallet_address)
+    if not stored or stored["nonce"] != body.nonce:
+        raise HTTPException(status_code=400, detail="유효하지 않거나 만료된 nonce입니다.")
+    if stored["expires_at"] < datetime.now(timezone.utc):
+        _reset_nonce_store.pop(body.wallet_address, None)
+        raise HTTPException(status_code=400, detail="유효하지 않거나 만료된 nonce입니다.")
+
+    # 2. 서명 검증 — reset 전용 prefix로 bind
+    signed_message = f"{RESET_MESSAGE_PREFIX}{stored['nonce']}"
+    if not verify_solana_signature(body.wallet_address, signed_message, body.signature):
+        logger.warning("[PASSWORD_RESET] 서명 검증 실패 wallet=%s", _mask_email(body.wallet_address))
+        raise HTTPException(status_code=401, detail="서명 검증에 실패했습니다.")
 
     if not _is_available():
         raise HTTPException(status_code=503, detail="Service unavailable")
 
     try:
-        new_hash = bcrypt.hashpw(body.new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         client = _get_client()
-        res = await client.patch(
+        # 3. 해당 지갑으로 가입된 user 존재 확인
+        lookup = await client.get(
             _rest_url("users"),
             headers=_headers(),
-            params={"id": f"eq.{token_data['user_id']}"},
+            params={"wallet_address": f"eq.{body.wallet_address}", "select": "id"},
+        )
+        if lookup.status_code != 200 or not lookup.json():
+            # nonce는 폐기 (재시도 강제 — brute force 방어)
+            _reset_nonce_store.pop(body.wallet_address, None)
+            logger.info(
+                "[PASSWORD_RESET] 미등록 지갑 wallet=%s",
+                _mask_email(body.wallet_address),
+            )
+            raise HTTPException(
+                status_code=404,
+                detail="해당 지갑으로 가입된 계정이 없습니다. 지갑 연결 후 다시 시도하세요.",
+            )
+
+        user_id = lookup.json()[0]["id"]
+
+        # 4. password_hash 업데이트
+        new_hash = bcrypt.hashpw(body.new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        patch_res = await client.patch(
+            _rest_url("users"),
+            headers=_headers(),
+            params={"id": f"eq.{user_id}"},
             json={"password_hash": new_hash},
         )
-        if res.status_code not in (200, 204):
-            logger.error(f"password_reset_confirm: PATCH 실패 {res.status_code}")
+        if patch_res.status_code not in (200, 204):
+            logger.error(f"password_reset_wallet_confirm: PATCH 실패 {patch_res.status_code}")
             raise HTTPException(status_code=500, detail="비밀번호 업데이트 실패")
 
-        # 토큰 1회 사용 후 즉시 폐기
-        _reset_tokens.pop(body.token, None)
-        logger.info(f"password reset success: user_id={token_data['user_id']}")
+        # 5. nonce 1회 사용 후 즉시 폐기
+        _reset_nonce_store.pop(body.wallet_address, None)
+        logger.info(
+            "[PASSWORD_RESET] 성공 wallet=%s user_id=%s",
+            _mask_email(body.wallet_address), user_id,
+        )
         return {"success": True, "message": "비밀번호가 재설정되었습니다. 로그인해주세요."}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"password_reset_confirm 실패: {e}", exc_info=True)
+        logger.error(f"password_reset_wallet_confirm 실패: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="비밀번호 재설정 실패")

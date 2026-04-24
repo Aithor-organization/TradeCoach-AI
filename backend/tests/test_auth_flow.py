@@ -61,52 +61,89 @@ async def test_login_returns_same_error_for_missing_email(client: AsyncClient):
         assert "일치하지 않습니다" in detail or "올바르지" in detail or "일치" in detail
 
 
-# ── Password Reset 플로우 (인메모리 토큰) ──────────────────
+# ── Password Reset 플로우 (Wallet 서명 기반) ────────────────
+
+# 유효한 base58 더미 Solana 주소 (실제 키 쌍은 아님 — 서명 검증에서 실패할 뿐 형식 검증은 통과)
+_DUMMY_WALLET = "TestWaketABCDEFGHJKMN2345678PQRSTUVWXYZabc"
 
 
 @pytest.mark.asyncio
-async def test_password_reset_request_always_returns_generic(client: AsyncClient):
-    """reset-request는 이메일 존재 여부와 무관하게 항상 200 + 일반 메시지."""
+async def test_reset_wallet_nonce_issues_token_without_user_check(client: AsyncClient):
+    """reset-wallet-nonce는 지갑 등록 여부와 무관하게 nonce를 발급 (enumeration 방지)."""
     res = await client.post(
-        "/auth/password/reset-request",
-        json={"email": "nobody@example.com"},
+        "/auth/password/reset-wallet-nonce",
+        json={"wallet_address": _DUMMY_WALLET},
     )
     assert res.status_code == 200
-    msg = res.json().get("message", "")
-    # 존재/미존재 구분 가능한 문구는 없어야 함
-    assert "등록되지" not in msg
-    assert "발송" in msg or "이메일" in msg
+    body = res.json()
+    assert "nonce" in body
+    assert isinstance(body["nonce"], str) and len(body["nonce"]) > 0
 
 
 @pytest.mark.asyncio
-async def test_password_reset_confirm_rejects_invalid_token(client: AsyncClient):
-    """존재하지 않는 토큰은 400"""
+async def test_reset_wallet_nonce_rejects_invalid_address(client: AsyncClient):
+    """Solana 주소 형식이 아닌 값은 422."""
     res = await client.post(
-        "/auth/password/reset-confirm",
-        json={"token": "a" * 48, "new_password": "newsecret123"},
+        "/auth/password/reset-wallet-nonce",
+        json={"wallet_address": "not-a-wallet"},
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reset_wallet_confirm_rejects_unknown_nonce(client: AsyncClient):
+    """발급된 적 없는 nonce는 400."""
+    res = await client.post(
+        "/auth/password/reset-wallet-confirm",
+        json={
+            "wallet_address": _DUMMY_WALLET,
+            "nonce": "a" * 64,
+            "signature": "1" * 88,  # base58 더미
+            "new_password": "newsecret123",
+        },
     )
     assert res.status_code == 400
-    assert "토큰" in res.json().get("detail", "")
+    assert "nonce" in res.json().get("detail", "").lower() or "nonce" in res.json().get("detail", "")
 
 
 @pytest.mark.asyncio
-async def test_password_reset_confirm_rejects_short_password(client: AsyncClient):
-    """6자 미만 새 비밀번호는 422"""
+async def test_reset_wallet_confirm_rejects_short_password(client: AsyncClient):
+    """6자 미만 새 비밀번호는 422."""
     res = await client.post(
-        "/auth/password/reset-confirm",
-        json={"token": "a" * 48, "new_password": "abc"},
+        "/auth/password/reset-wallet-confirm",
+        json={
+            "wallet_address": _DUMMY_WALLET,
+            "nonce": "a" * 64,
+            "signature": "1" * 88,
+            "new_password": "abc",
+        },
     )
     assert res.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_password_reset_confirm_rejects_short_token(client: AsyncClient):
-    """32자 미만 토큰은 422"""
-    res = await client.post(
-        "/auth/password/reset-confirm",
-        json={"token": "short", "new_password": "newsecret123"},
+async def test_reset_wallet_confirm_rejects_bad_signature(client: AsyncClient):
+    """nonce 발급 후 잘못된 서명으로 confirm 시 401."""
+    # Step 1: nonce 발급
+    nonce_res = await client.post(
+        "/auth/password/reset-wallet-nonce",
+        json={"wallet_address": _DUMMY_WALLET},
     )
-    assert res.status_code == 422
+    assert nonce_res.status_code == 200
+    nonce = nonce_res.json()["nonce"]
+
+    # Step 2: 가짜 서명으로 confirm — 401 expected
+    res = await client.post(
+        "/auth/password/reset-wallet-confirm",
+        json={
+            "wallet_address": _DUMMY_WALLET,
+            "nonce": nonce,
+            "signature": "1" * 88,  # base58 형식이나 실제 서명 아님
+            "new_password": "newsecret123",
+        },
+    )
+    assert res.status_code == 401
+    assert "서명" in res.json().get("detail", "")
 
 
 # ── Wallet auth 기본 검증 ─────────────────────────────────

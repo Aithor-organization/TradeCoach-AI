@@ -333,6 +333,34 @@ export async function loginWithEmail(email: string, password: string) {
   });
 }
 
+// 비밀번호 재설정 (Wallet 서명 기반 — 이메일 전송 없음)
+// 서명 대상 메시지는 백엔드와 반드시 일치해야 함: RESET_MESSAGE_PREFIX + nonce
+export const RESET_MESSAGE_PREFIX = "TradeCoach-AI password reset: ";
+
+export async function requestPasswordResetNonce(walletAddress: string) {
+  return fetcher<{ nonce: string; message: string }>("/auth/password/reset-wallet-nonce", {
+    method: "POST",
+    body: JSON.stringify({ wallet_address: walletAddress }),
+  });
+}
+
+export async function confirmPasswordResetWithWallet(
+  walletAddress: string,
+  nonce: string,
+  signature: string,
+  newPassword: string,
+) {
+  return fetcher<{ success: boolean; message: string }>("/auth/password/reset-wallet-confirm", {
+    method: "POST",
+    body: JSON.stringify({
+      wallet_address: walletAddress,
+      nonce,
+      signature,
+      new_password: newPassword,
+    }),
+  });
+}
+
 // 최적화 API (Phase 2)
 export interface OptimizeResult {
   params: Record<string, number>;
