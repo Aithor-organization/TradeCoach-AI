@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, HTTPException
 
-from services.jupiter import get_token_price, get_all_prices
+from services.price_feed import get_token_price, get_all_prices
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/prices")
 async def get_prices():
-    """주요 토큰 실시간 가격 일괄 조회 (Jupiter Quote API)"""
+    """주요 토큰 실시간 가격 일괄 조회 (CoinGecko Simple Price API)"""
     try:
         prices = await get_all_prices()
         return {"prices": prices}

@@ -68,7 +68,8 @@ async def test_wallet_auth_nonce(client: AsyncClient):
 
     Supabase 미연결 시 인메모리 폴백으로 동작하므로 외부 의존성 없이 200 응답이어야 한다.
     """
-    payload = {"wallet_address": "TestWallet1111111111111111111111111111111111"}
+    # Solana base58에는 0/O/I/l 제외. 유효한 base58 문자로만 구성.
+    payload = {"wallet_address": "TestWaketABCDEFGHJKMN2345678PQRSTUVWXYZabc"}
     response = await client.post("/auth/wallet", json=payload)
 
     assert response.status_code == 200

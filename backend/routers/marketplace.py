@@ -1,6 +1,6 @@
 """Marketplace API: 9 endpoints for listings, purchase, rent, licenses, rankings, revenue"""
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel, Field
 from typing import Optional
 logger = logging.getLogger(__name__)
@@ -32,18 +32,42 @@ async def get_strategy(id: str):
     return r
 
 @router.post("/strategies/{id}/purchase", status_code=201)
-async def purchase(id: str, body: PurchaseReq):
-    from services.marketplace import PurchaseService
+async def purchase(
+    id: str,
+    body: PurchaseReq,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=128),
+):
+    """전략 영구 구매.
+
+    🔴 Idempotency-Key 헤더(선택): 동일 키로 재호출 시 최초 결과를 그대로 반환하여
+    네트워크 retry로 인한 중복 결제/License 중복 생성을 방어한다.
+    """
+    from services.marketplace import ListingService, PurchaseService
     listing = await ListingService(_get_db()).get_listing(id)
     if not listing: raise HTTPException(404)
-    return await PurchaseService(_get_db()).execute_purchase(id, body.buyer_wallet, listing.get("price_usdc",0), body.tx_signature)
+    return await PurchaseService(_get_db()).execute_purchase(
+        id, body.buyer_wallet, listing.get("price_usdc", 0), body.tx_signature,
+        idempotency_key=idempotency_key,
+    )
 
 @router.post("/strategies/{id}/rent", status_code=201)
-async def rent(id: str, body: RentReq):
+async def rent(
+    id: str,
+    body: RentReq,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key", max_length=128),
+):
+    """전략 일일 렌탈.
+
+    🔴 Idempotency-Key 헤더(선택): purchase와 동일한 이유로 중복 escrow 방지.
+    """
     from services.marketplace import EscrowService, ListingService
     listing = await ListingService(_get_db()).get_listing(id)
     if not listing: raise HTTPException(404)
-    return await EscrowService(_get_db()).create_escrow(id, body.renter_wallet, listing.get("creator_address",""), body.days, listing.get("rental_price_per_day",0))
+    return await EscrowService(_get_db()).create_escrow(
+        id, body.renter_wallet, listing.get("creator_address", ""), body.days,
+        listing.get("rental_price_per_day", 0),
+        idempotency_key=idempotency_key,
+    )
 
 @router.get("/licenses")
 async def my_licenses(wallet: str=Query(..., min_length=32)):

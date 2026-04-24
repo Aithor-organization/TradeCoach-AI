@@ -92,8 +92,32 @@ app.add_middleware(
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    logger.warning(f"요청 검증 실패: {exc.errors()}")
-    return JSONResponse(status_code=422, content={"detail": exc.errors(), "type": "validation_error"})
+    # exc.errors()가 ValueError/Exception 객체를 포함할 수 있어 json.dumps 실패할 수 있음.
+    # str()로 안전하게 직렬화.
+    safe_errors = [
+        {
+            "loc": list(err.get("loc", [])),
+            "msg": str(err.get("msg", "")),
+            "type": str(err.get("type", "")),
+        }
+        for err in exc.errors()
+    ]
+    logger.warning(f"요청 검증 실패: {safe_errors}")
+    return JSONResponse(status_code=422, content={"detail": safe_errors, "type": "validation_error"})
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """Pydantic field_validator 등에서 raise된 ValueError를 422로 정규화.
+
+    기본 Exception handler가 잡으면 JSON 직렬화에서 raw exception 객체가 포함돼 500 에러와
+    함께 "Object of type ValueError is not JSON serializable"가 뜨던 문제 방어.
+    """
+    logger.warning(f"ValueError [{request.method} {request.url.path}]: {exc}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": [{"msg": str(exc), "type": "value_error"}], "type": "validation_error"},
+    )
 
 
 @app.exception_handler(Exception)

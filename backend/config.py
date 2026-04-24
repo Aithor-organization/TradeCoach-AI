@@ -51,15 +51,35 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     s = Settings()
 
-    # 프로덕션 환경에서 기본 JWT 시크릿 사용 경고
-    if s.jwt_secret == _DEV_SECRET:
-        env = os.getenv("ENV", "development")
-        if env in ("production", "staging"):
-            raise ValueError(
-                "JWT_SECRET이 기본값입니다. 프로덕션에서는 반드시 환경변수로 안전한 시크릿을 설정하세요."
-            )
+    env = os.getenv("ENV", "development")
+    is_prodlike = env in ("production", "staging")
+
+    # 🔴 프로덕션/스테이징에서 누락되면 앱 기동 자체를 차단 (fail-fast).
+    # 빈 값으로 올라오면 첫 요청에서 미묘한 500/401이 튀어 디버깅이 어려움.
+    missing: list[str] = []
+    if not s.jwt_secret or s.jwt_secret == _DEV_SECRET:
+        missing.append("JWT_SECRET")
+    if not s.supabase_url:
+        missing.append("SUPABASE_URL")
+    if not s.supabase_service_key:
+        missing.append("SUPABASE_SERVICE_KEY")
+    if not s.gemini_api_key:
+        missing.append("GEMINI_API_KEY")
+    # Solana 키페어는 파일 경로라 값 존재만 확인 (실재 여부는 anchor_client가 lazy-validate)
+    if not s.solana_rpc_url:
+        missing.append("SOLANA_RPC_URL")
+
+    if is_prodlike and missing:
+        raise ValueError(
+            f"프로덕션/스테이징 환경에서 필수 환경변수 누락: {', '.join(missing)}. "
+            "Railway/Vercel 대시보드에서 설정 후 재배포하세요."
+        )
+
+    if missing and not is_prodlike:
         logger.warning(
-            "⚠️ JWT_SECRET이 기본 개발용 값입니다. 프로덕션 배포 전 반드시 변경하세요."
+            "⚠️ 개발 모드에서 %d개 환경변수가 기본값/공백입니다: %s. 일부 기능이 제한될 수 있습니다.",
+            len(missing),
+            ", ".join(missing),
         )
 
     return s

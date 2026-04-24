@@ -1,5 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from models.user import WalletAuthRequest, WalletVerifyRequest, NonceResponse, AuthResponse, UserResponse, EmailRegisterRequest, EmailLoginRequest, EmailAuthResponse
+from models.user import (
+    WalletAuthRequest, WalletVerifyRequest, NonceResponse, AuthResponse, UserResponse,
+    EmailRegisterRequest, EmailLoginRequest, EmailAuthResponse,
+    PasswordResetRequest, PasswordResetConfirm, PasswordResetResponse,
+)
 from config import get_settings
 from dependencies import require_auth
 from slowapi import Limiter
@@ -64,6 +68,12 @@ def _create_jwt_token(user_id: str, **extra_claims) -> str:
 
 # 인메모리 폴백 (Supabase 연결 안 될 때)
 _nonce_store: dict[str, str] = {}
+
+# 🔴 MVP 비밀번호 재설정 토큰 저장소 (인메모리, 서버 재시작 시 휘발).
+# Production에서는 `password_reset_tokens` 테이블 또는 Redis로 이전 필요.
+# 토큰은 1회 사용 후 즉시 폐기, TTL 30분.
+_reset_tokens: dict[str, dict] = {}
+RESET_TOKEN_TTL_MINUTES = 30
 
 
 @router.post("/wallet", response_model=NonceResponse)
@@ -295,3 +305,87 @@ async def register_with_email(request: Request, body: EmailRegisterRequest):
     except Exception as e:
         logger.error(f"이메일 가입 실패 (email={body.email}): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Registration failed")
+
+
+@router.post("/password/reset-request", response_model=PasswordResetResponse)
+@limiter.limit("3/minute")
+async def password_reset_request(request: Request, body: PasswordResetRequest):
+    """비밀번호 재설정 토큰 발급 요청.
+
+    🔴 SECURITY: 이메일 존재 여부에 관계없이 동일한 응답을 반환해 enumeration을 차단한다.
+    실제 이메일 발송 인프라가 통합되기 전까지는 재설정 링크를 서버 로그에만 기록한다
+    (운영자가 수동으로 사용자에게 전달하거나, 향후 Email 서비스 연동 시 이 부분만 교체).
+    """
+    from services.supabase_client import _is_available, _get_client, _rest_url, _headers
+
+    try:
+        if _is_available():
+            client = _get_client()
+            res = await client.get(
+                _rest_url("users"),
+                headers=_headers(),
+                params={"wallet_address": f"eq.{body.email}", "select": "id,wallet_address"},
+            )
+            if res.status_code == 200 and res.json():
+                user = res.json()[0]
+                token = secrets.token_urlsafe(48)  # 384-bit entropy
+                expires_at = datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_TTL_MINUTES)
+                _reset_tokens[token] = {
+                    "user_id": user["id"],
+                    "email": body.email,
+                    "expires_at": expires_at,
+                }
+                # TODO(email-integration): 실제 이메일 발송으로 교체. 현재는 로그로만 출력.
+                reset_link = f"/auth/password/reset?token={token}"
+                logger.warning(
+                    "[PASSWORD_RESET] email=%s expires_at=%s link_path=%s (전송 인프라 없음: 수동 전달 필요)",
+                    body.email, expires_at.isoformat(), reset_link,
+                )
+            else:
+                logger.info(f"[PASSWORD_RESET] 미등록 이메일 요청(무시): {body.email}")
+    except Exception as e:
+        # 실패해도 응답은 동일 — enumeration 방지
+        logger.error(f"password_reset_request 내부 오류 (email={body.email}): {e}", exc_info=True)
+
+    return PasswordResetResponse()
+
+
+@router.post("/password/reset-confirm")
+@limiter.limit("5/minute")
+async def password_reset_confirm(request: Request, body: PasswordResetConfirm):
+    """재설정 토큰으로 새 비밀번호 설정 (1회 사용)."""
+    import bcrypt
+    from services.supabase_client import _is_available, _get_client, _rest_url, _headers
+
+    token_data = _reset_tokens.get(body.token)
+    if not token_data or token_data["expires_at"] < datetime.now(timezone.utc):
+        # 만료된 경우 명시적 제거
+        if token_data:
+            _reset_tokens.pop(body.token, None)
+        raise HTTPException(status_code=400, detail="유효하지 않거나 만료된 토큰입니다.")
+
+    if not _is_available():
+        raise HTTPException(status_code=503, detail="Service unavailable")
+
+    try:
+        new_hash = bcrypt.hashpw(body.new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        client = _get_client()
+        res = await client.patch(
+            _rest_url("users"),
+            headers=_headers(),
+            params={"id": f"eq.{token_data['user_id']}"},
+            json={"password_hash": new_hash},
+        )
+        if res.status_code not in (200, 204):
+            logger.error(f"password_reset_confirm: PATCH 실패 {res.status_code}")
+            raise HTTPException(status_code=500, detail="비밀번호 업데이트 실패")
+
+        # 토큰 1회 사용 후 즉시 폐기
+        _reset_tokens.pop(body.token, None)
+        logger.info(f"password reset success: user_id={token_data['user_id']}")
+        return {"success": True, "message": "비밀번호가 재설정되었습니다. 로그인해주세요."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"password_reset_confirm 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="비밀번호 재설정 실패")
