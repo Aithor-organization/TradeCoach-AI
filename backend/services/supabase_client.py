@@ -126,8 +126,21 @@ async def get_or_create_user(wallet_address: str) -> Optional[dict]:
     return None
 
 
-async def get_or_create_user_by_email(email: str, name: str, password_hash: Optional[str] = None) -> Optional[dict]:
-    """이메일로 사용자 조회 또는 생성 (MVP 간편 가입)"""
+async def get_or_create_user_by_email(
+    email: str,
+    name: str,
+    password_hash: Optional[str] = None,
+    fail_if_exists: bool = False,
+) -> Optional[dict]:
+    """이메일로 사용자 조회 또는 생성 (MVP 간편 가입).
+
+    Args:
+        fail_if_exists: True면 기존 유저 발견 시 None 반환 (회원가입 플로우용).
+            False(기본)면 기존 유저를 그대로 반환 (기존 호환성 유지).
+
+    ⚠️ SECURITY: 회원가입 시에는 반드시 fail_if_exists=True로 호출할 것.
+       그렇지 않으면 공격자가 타인의 이메일로 register를 호출해 JWT를 발급받을 수 있음.
+    """
     if not _is_available():
         import uuid
         from datetime import datetime, timezone
@@ -140,6 +153,9 @@ async def get_or_create_user_by_email(email: str, name: str, password_hash: Opti
         params={"wallet_address": f"eq.{email}", "select": "*"},
     )
     if res.status_code == 200 and res.json():
+        if fail_if_exists:
+            logger.info(f"중복 가입 시도 차단: {email}")
+            return None
         return res.json()[0]
     # 신규 생성 — password_hash를 초기 INSERT에 포함 (별도 PATCH 불필요)
     insert_data: dict = {"wallet_address": email, "tier": "free"}

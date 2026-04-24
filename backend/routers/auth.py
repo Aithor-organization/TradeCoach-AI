@@ -186,23 +186,26 @@ async def login_with_email(request: Request, body: EmailLoginRequest):
             headers=_headers(),
             params={"wallet_address": f"eq.{body.email}", "select": "id,wallet_address,display_name,tier,password_hash,created_at"},
         )
+        # 🔴 SECURITY: 이메일 존재 여부에 따라 다른 응답을 주면 사용자 열거(user enumeration) 취약점.
+        # 아래 3가지 실패 케이스를 모두 동일한 401 + 동일 메시지로 통일.
+        GENERIC_AUTH_ERROR = "이메일 또는 비밀번호가 일치하지 않습니다."
+
         if res.status_code != 200 or not res.json():
-            raise HTTPException(status_code=404, detail="등록되지 않은 이메일입니다. 먼저 회원가입을 해주세요.")
+            logger.info(f"로그인 실패(미가입 이메일): {body.email}")
+            raise HTTPException(status_code=401, detail=GENERIC_AUTH_ERROR)
 
         user = res.json()[0]
 
         # 비밀번호 검증
         stored_hash = user.get("password_hash")
         if not stored_hash:
-            # 🔴 SECURITY: password_hash가 NULL인 계정은 로그인 금지 (공격자가 admin1234 등으로 덮어쓰는 취약점 방지)
-            # 이런 계정은 비밀번호 재설정 플로우로 본인 확인 후 설정해야 함.
-            logger.warning(f"password_hash 미설정 계정 로그인 시도: {body.email}")
-            raise HTTPException(
-                status_code=403,
-                detail="비밀번호가 설정되지 않은 계정입니다. 비밀번호 재설정을 요청해주세요.",
-            )
+            # password_hash가 NULL인 계정 (과거 wallet-only 가입자). admin1234 자동 덮어쓰기는 삭제됨.
+            # 이런 계정은 비밀번호 재설정 플로우 필요 — 사용자에게는 동일한 메시지로 응답하여 이메일 존재 노출 방지.
+            logger.warning(f"로그인 실패(password_hash 미설정): {body.email}")
+            raise HTTPException(status_code=401, detail=GENERIC_AUTH_ERROR)
         if not bcrypt.checkpw(body.password.encode("utf-8"), stored_hash.encode("utf-8")):
-            raise HTTPException(status_code=401, detail="비밀번호가 일치하지 않습니다.")
+            logger.info(f"로그인 실패(비밀번호 불일치): {body.email}")
+            raise HTTPException(status_code=401, detail=GENERIC_AUTH_ERROR)
 
         access_token = _create_jwt_token(
             user["id"],
@@ -237,23 +240,41 @@ async def register_with_email(request: Request, body: EmailRegisterRequest):
     try:
         # 비밀번호를 먼저 해싱하여 사용자 생성 시 함께 INSERT
         password_hash = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        user = await get_or_create_user_by_email(body.email, body.name, password_hash=password_hash)
+        # 🔴 SECURITY: fail_if_exists=True — 중복 이메일 시 None 반환 받기.
+        # 기존 유저 덮어쓰기/JWT 발급은 계정 탈취 취약점이므로 차단.
+        user = await get_or_create_user_by_email(
+            body.email, body.name, password_hash=password_hash, fail_if_exists=True,
+        )
 
-        if not user:
-            raise HTTPException(status_code=500, detail="Failed to create user")
+        if user is None:
+            raise HTTPException(
+                status_code=409,
+                detail="이미 가입된 이메일입니다. 로그인해주세요.",
+            )
 
-        # DB 저장 검증 — 실제로 조회 가능한지 확인
+        # DB 저장 검증 — 실제로 조회 가능한지 + password_hash도 제대로 저장됐는지 확인
         from services.supabase_client import _is_available, _get_client, _rest_url, _headers
         if _is_available():
             verify_client = _get_client()
             verify_res = await verify_client.get(
                 _rest_url("users"),
                 headers=_headers(),
-                params={"wallet_address": f"eq.{body.email}", "select": "id"},
+                params={"wallet_address": f"eq.{body.email}", "select": "id,password_hash"},
             )
             if verify_res.status_code != 200 or not verify_res.json():
                 logger.error(f"회원가입 DB 저장 검증 실패: 유저가 DB에 없음 (email={body.email})")
                 raise HTTPException(status_code=500, detail="User created but not found in DB — please retry")
+            verified_user = verify_res.json()[0]
+            if not verified_user.get("password_hash"):
+                # password_hash 컬럼 자체가 없거나, PATCH도 실패해서 NULL로 남은 경우.
+                # 이 상태로 JWT를 발급하면 유저는 "가입 성공"으로 보이지만 로그인 불가.
+                logger.error(
+                    f"회원가입 후 password_hash 저장 안 됨 — Supabase 컬럼 점검 필요 (email={body.email})"
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="비밀번호 저장에 실패했습니다. 관리자에게 문의해주세요.",
+                )
 
         # 통일된 JWT 생성 (email_verified는 향후 이메일 인증 플로우용)
         access_token = _create_jwt_token(
