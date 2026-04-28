@@ -17,12 +17,12 @@ export default function ChatMockup() {
     const initPlayer = () => {
       if (!playerRef.current || ytPlayerRef.current) return;
       ytPlayerRef.current = new window.YT.Player(playerRef.current, {
-        videoId: "pTnbKeb9dg0",
+        videoId: "QGe_4rgVw6I",
         playerVars: {
           autoplay: 1,
           mute: 1,
           loop: 1,
-          playlist: "pTnbKeb9dg0",
+          playlist: "QGe_4rgVw6I",
           controls: 0,
           showinfo: 0,
           rel: 0,
